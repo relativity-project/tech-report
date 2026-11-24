@@ -20,7 +20,7 @@ All new runs use libtt 0.2.2 (2a4333a9) unless noted; logs are on the QuietBox u
 | R0 facts of the published RL run | yes | Gain is not format: step 0 boxes 99%; wrong values 544 → 262 | `r0/` |
 | R1 seeds | 2 new seeds × 30 steps (user's choice) | TODO-R1 | `rl/runs/r1_*` |
 | R2 zero-learning-rate control | yes | Pass: 31 empty transfers, byte-identical weights, 58.07% at steps 0 and 30 | `rl/runs/r2_lr0` |
-| R3 reference run | CPU log-probability check only (no CPU Miles loop) | TODO-R3 | `r3/` |
+| R3 reference run | CPU log-probability check only (no CPU Miles loop) | Trainer's batch-mean log-probability within 0.0003 of an FP32 CPU reference, engine within 0.0008 | `r3/` |
 | R4 cross-evaluation of the policy | no (time) | — | — |
 | R5 answer format | yes (rescoring) | Lenient scoring changes the endpoints by 0 / +5 answers | `r0/lenient.out` |
 | R6 precision A/B (RL) | no (time) | — | — |
@@ -323,3 +323,24 @@ score rises from 1.06% to 72.18%, 13.8 points below the fine-tuned model under t
 23.05-point gain is therefore mostly the 512-token cap and answer format; the gain in solving that survives the
 controls is about 4.5 points (zero-shot, 1,024 tokens), while the fine-tuned model is far more concise (mean 143 against
 567 tokens) and reliably formatted. The fine-tuned model is insensitive to the settings (85.2–87.4%).
+
+## R3: reference for the RL loop (CPU log-probability check; the full loop on a CPU was out of reach)
+
+Miles' trainer runs only on CUDA or TPU platforms, so a CPU reference of the whole loop would mean porting Miles; with
+the user's choice of scaled-down CPU references (2026-11-24) this check covers the numbers the loop's update depends
+on instead. The seed runs save every rollout batch (`--save-debug-rollout-data`); for the first batch of run `r1_s2`
+(128 answers, 28,084 tokens, sampled by the step-0 policy on the chips), `exp/r3/cpu_logprobs.py` recomputes each answer
+token's log-probability on the CPU (transformers, FP32 weights and arithmetic, the original Qwen3-0.6B) and compares
+with the serving engine's (SGLang-TorchTPU, BF16), saved with the batch; Miles logs its trainer's (TorchTitan on the
+chips) for the same batch.
+
+| Batch mean log-probability (mean over answers of each answer's mean) | Value | − CPU |
+| --- | --- | --- |
+| CPU reference, FP32 | −0.34197 | |
+| Trainer on the chips (Miles' `rollout/log_probs`) | −0.34223 | −0.0003 |
+| Engine on the chips (`rollout/rollout_log_probs`; recomputed from the batch: −0.34114) | −0.34114 | +0.0008 |
+
+Per token, the CPU and the engine differ by 0.0166 on average (4.2% of tokens by more than 0.1, at most 2.8); Miles
+reports 0.0185 between its trainer and the engine (`train/train_rollout_logprob_abs_diff`). The trainer's
+log-probabilities, which set GRPO's importance ratios, agree with the FP32 reference to 0.0003 in the batch mean; the
+engine's sampling numbers are the coarser ones, as in S4. Not covered: a reference of the loop's updates (G1 for RL).
