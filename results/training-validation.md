@@ -236,22 +236,30 @@ Added at the user's request (2026-11-24), replacing the planned MetaMathQA rerun
   0.2.2, greedy, 512 tokens (`fc/bfcl_prompts.py`, `fc/bfcl_eval_tt.py`). The scorer was checked with replies built
   from BFCL's possible answers (98–100% pass; the misses are the builder's) and with wrong replies (all fail).
 
-| Category (tests) | Base, strict | Base, lenient | Fine-tuned, strict | Fine-tuned, lenient |
-| --- | --- | --- | --- | --- |
-| simple (400) | 58.25% | 63.25% | 84.75% | 84.75% |
-| multiple (200) | 63.0% | 67.5% | 86.0% | 86.0% |
-| parallel (200) | 51.5% | 64.0% | 85.0% | 85.0% |
-| parallel multiple (200) | 45.0% | 51.5% | 77.0% | 77.0% |
-| irrelevance (240) | 94.6% | 93.8% | 95.0% | 95.0% |
-| **mean of the five** | **62.5%** | **68.0%** | **85.6%** | **85.6%** |
+| Category (tests) | Base, thinking prompt | lenient | Base, non-thinking | lenient | Fine-tuned, thinking | Fine-tuned, non-thinking |
+| --- | --- | --- | --- | --- | --- | --- |
+| simple (400) | 58.25% | 67.0% | 59.0% | 61.25% | 84.75% | 93.5% |
+| multiple (200) | 63.0% | 70.5% | 53.5% | 62.5% | 86.0% | 95.0% |
+| parallel (200) | 51.5% | 70.5% | 42.5% | 47.0% | 85.0% | 91.5% |
+| parallel multiple (200) | 45.0% | 64.5% | 41.0% | 56.0% | 77.0% | 83.0% |
+| irrelevance (240) | 94.6% | 93.3% | 85.4% | 84.6% | 95.0% | 92.1% |
+| **mean of the five** | **62.5%** | **73.2%** | **56.3%** | **62.3%** | **85.6%** | **91.0%** |
 
-Lenient (`fc/lenient.py`) is the format control: the last bracketed span anywhere in the reply that decodes as a list
-of calls, checked by the same AST checker. The Base model's failures are mostly unreadable replies (375 of 461, for
-example the format's template copied literally after correct reasoning; 82 replies reach the cap); reading its replies
-leniently lifts it only to 68.0%, so the fine-tuned model's 85.6% is a gain of 17.6 points beyond answer format (23.1
-strict). The fine-tuned model's 177 failures: 95 replies with no decodable call (most point out a required parameter
-the question does not give, as both prompts instruct, where BFCL's answer expects a call; 40 reach the cap), 70 calls
-with a wrong function or value, 12 irrelevance tests where it calls a function.
+The two prompts differ only in the generation prompt's last tokens: the template's default opens a thinking block
+(`<think>\n`); its non-thinking mode (`enable_thinking=False`, `fc/bfcl_prompts_mode.py`) ends in an empty block
+(`<think>\n\n</think>\n\n`), exactly as the training sequences hold it, so prompt and reply tokenize as in training.
+Lenient (`fc/lenient.py`) is the format control: the last bracketed span anywhere in the reply that decodes as a list of
+calls, after removing the format template's placeholders ("func_name1=", "params_name1=") that the Base model copies
+into otherwise correct calls, checked by the same AST checker; it changes nothing for the fine-tuned model.
+
+The Base model's failures are mostly unreadable replies (thinking prompt: 375 of 461, the template copied after correct
+reasoning, or placeholders inside calls; non-thinking: 434 of 525, placeholders inside calls). Forgiving its format
+lifts it to 73.2% at best, so fine-tuning adds 12.4 points beyond answer format with the same (thinking) prompt and
+17.9 points with each model at its best (91.0% vs 73.2%). With the thinking prompt the fine-tuned model writes a
+rationale first (mean 205 tokens; 40 replies reach the cap) and its failures include 95 replies with no decodable call,
+most pointing out a required parameter the question omits (as both prompts instruct) where BFCL's answer expects a call;
+with the non-thinking prompt it answers directly (mean 39 tokens; one reply reaches the cap) and its 106 failures are
+73 calls with a wrong function or value, 14 replies with no decodable call and 19 irrelevance tests where it calls.
 
 Prompt detail: the template's generation prompt opens a thinking block (`<think>\n`) while the training sequences held
 an empty one (`<think>\n\n</think>\n\n`, whose first newline merges with the prompt's in tokenization; TorchTitan's

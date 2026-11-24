@@ -79,27 +79,27 @@ The evaluation uses the Berkeley Function Calling Leaderboard @bfcl: its five si
 
 #figure(
   placement: auto,
-  caption: [Function calling on BFCL's five single-turn categories (per cent of tests passed): Qwen3.5-9B-Base before and after fine-tuning on ToolACE. Lenient accepts any readable list of calls in the reply, a control for answer format.],
+  caption: [Function calling on BFCL's five single-turn categories (per cent of tests passed): Qwen3.5-9B-Base before and after fine-tuning on ToolACE, with the chat template's thinking prompt and with its non-thinking prompt, which ends in the empty thinking block the training samples hold. Lenient reads any list of calls in the reply, after removing copied template placeholders: a control for answer format.],
   table(
-    columns: 4,
-    align: (left, right, right, right),
+    columns: 5,
+    align: (left, right, right, right, right),
     table.hline(stroke: heavy),
-    table.header([Category (tests)], [Base], [Base, lenient], [Fine-tuned]),
+    table.header([Category (tests)], [Base], [Base, lenient], [Fine-tuned], [Fine-tuned, non-thinking]),
     table.hline(stroke: light),
-    [Simple (400)], [58.3], [63.3], [84.8],
-    [Multiple (200)], [63.0], [67.5], [86.0],
-    [Parallel (200)], [51.5], [64.0], [85.0],
-    [Parallel multiple (200)], [45.0], [51.5], [77.0],
-    [Irrelevance (240)], [94.6], [93.8], [95.0],
+    [Simple (400)], [58.3], [67.0], [84.8], [93.5],
+    [Multiple (200)], [63.0], [70.5], [86.0], [95.0],
+    [Parallel (200)], [51.5], [70.5], [85.0], [91.5],
+    [Parallel multiple (200)], [45.0], [64.5], [77.0], [83.0],
+    [Irrelevance (240)], [94.6], [93.3], [95.0], [92.1],
     table.hline(stroke: light),
-    [Mean], [62.5], [68.0], [85.6],
+    [Mean], [62.5], [73.2], [85.6], [91.0],
     table.hline(stroke: heavy),
   ),
 ) <bfcl-results>
 
-Fine-tuning raises the mean from 62.5 to 85.6 per cent (@bfcl-results). The Base model often writes a reply the parser cannot read, for example by copying the format's template after reasoning correctly; reading its replies leniently raises it only to 68.0 per cent, so 17.6 of the 23.1 points are not answer format. The fine-tuned model's 177 failures are mostly replies that point out a missing required parameter, as the prompt asks, where BFCL expects a call, and calls with a wrong value.
+Fine-tuning raises the mean from 62.5 to 85.6 per cent with the same prompt, and to 91.0 per cent with the non-thinking prompt, which matches the training format (@bfcl-results); the Base model scores lower with that prompt (56.3 per cent). The Base model often writes a reply the parser cannot read, for example by copying the format's placeholders into its calls; reading its replies leniently raises it to 73.2 per cent, so the fine-tuned model's gain is at least 12 points beyond answer format with the same prompt and 18 points at its best. Its remaining failures are mostly calls with a wrong value and, with the thinking prompt, replies that point out a missing required parameter, as the prompt asks, where BFCL expects a call.
 
-The training itself was also checked on MetaMathQA @metamath, TorchTitan's own fine-tuning example, with the same recipe. On libtt 0.2.2 it reproduces the earlier run's first 30 losses exactly. With BF16 parameters and AdamW state, most updates are smaller than half a BF16 unit in the last place and are lost: at the peak learning rate about 90 per cent of the feed-forward and attention weights keep their value in a step. On Qwen3.5-2B-Base this acts as a smaller learning rate: FP32 storage at the same rate ends slightly worse on GSM8K (72.9 against 75.0 per cent), and at a quarter of the rate slightly better (75.4 per cent). A scaled-down run agrees with a CPU reference, within half the difference between two data orders, and a CPU reference picks the chips' next token at 98.6 to 99.7 per cent of positions, differing only at near-ties. TODO-S5. Full results are in the repository's results note.
+The training itself was also checked on MetaMathQA @metamath, TorchTitan's own fine-tuning example, with the same recipe. On libtt 0.2.2 it reproduces the earlier run's first 30 losses exactly. With BF16 parameters and AdamW state, most updates are smaller than half a BF16 unit in the last place and are lost: at the peak learning rate about 90 per cent of the feed-forward and attention weights keep their value in a step. On Qwen3.5-2B-Base this acts as a smaller learning rate: FP32 storage at the same rate ends slightly worse on GSM8K (72.9 against 75.0 per cent), and at a quarter of the rate slightly better (75.4 per cent). A scaled-down run agrees with a CPU reference, within half the difference between two data orders, and a CPU reference picks the chips' next token at 98.6 to 99.7 per cent of positions, differing only at near-ties. The GSM8K gain first reported for this run, 64.4 to 87.3 per cent zero-shot within 512 tokens, is mostly the length cap and answer format: the Base model reasons at length and rarely writes “The answer is”, and given 1,024 tokens it solves 82.9 per cent by the same scorer, 4.5 points below the fine-tuned model. Full results are in the repository's results note.
 #import "fig-rl-learning.typ": rl-learning-image
 
 // Miles 7767e158 + two-file disk-delta portability patch. Original run: long3.
