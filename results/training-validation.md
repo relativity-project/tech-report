@@ -18,7 +18,7 @@ All new runs use libtt 0.2.2 (2a4333a9) unless noted; logs are on the QuietBox u
 | Function calling (ToolACE → BFCL) | yes (user's addition) | BFCL 62.5% → 85.6% (same prompt), 91.0% (non-thinking prompt); Base at most 73.2% with format forgiven | `logs/fc_9b_toolace.log`, `../fc/out/` |
 | Fused-loss fix (libtt) | yes | Logged loss was +0.015 per ignored token (BF16 log V) and +0.0009 from a BF16-precision exp; fixed on libtt branch `cross-entropy-accurate-exp` | `logs/s3_diag*`, `logs/test_*` |
 | R0 facts of the published RL run | yes | Gain is not format: step 0 boxes 99%; wrong values 544 → 262 | `r0/` |
-| R1 seeds | 2 new seeds × 30 steps (user's choice) | TODO-R1 | `rl/runs/r1_*` |
+| R1 seeds | 2 new seeds × 30 steps (user's choice) | Step 30: 68.6% and 67.1% (seeds 1235, 1236; libtt 0.2.2) vs the published 70.7% (seed 1234, 0.2.1); step 10: 66.0% and 58.8% | `rl/runs/r1_*` |
 | R2 zero-learning-rate control | yes | Pass: 31 empty transfers, byte-identical weights, 58.07% at steps 0 and 30 | `rl/runs/r2_lr0` |
 | R3 reference run | CPU log-probability check only (no CPU Miles loop) | Trainer's batch-mean log-probability within 0.0003 of an FP32 CPU reference, engine within 0.0008 | `r3/` |
 | R4 cross-evaluation of the policy | no (time) | — | — |
@@ -339,8 +339,28 @@ chips) for the same batch.
 | CPU reference, FP32 | −0.34197 | |
 | Trainer on the chips (Miles' `rollout/log_probs`) | −0.34223 | −0.0003 |
 | Engine on the chips (`rollout/rollout_log_probs`; recomputed from the batch: −0.34114) | −0.34114 | +0.0008 |
+| Same for the first batch of `r1_s3` (23,138 tokens): CPU −0.29030, trainer −0.29043, engine −0.28972 | | −0.0001 / +0.0006 |
 
-Per token, the CPU and the engine differ by 0.0166 on average (4.2% of tokens by more than 0.1, at most 2.8); Miles
-reports 0.0185 between its trainer and the engine (`train/train_rollout_logprob_abs_diff`). The trainer's
+Per token, the CPU and the engine differ by 0.0166 on average (4.2% of tokens by more than 0.1, at most 2.8; `r1_s3`:
+0.0152); Miles reports 0.0185 (`r1_s3`: 0.0165) between its trainer and the engine (`train/train_rollout_logprob_abs_diff`). The trainer's
 log-probabilities, which set GRPO's importance ratios, agree with the FP32 reference to 0.0003 in the batch mean; the
 engine's sampling numbers are the coarser ones, as in S4. Not covered: a reference of the loop's updates (G1 for RL).
+
+## R1: seeds (two new seeds, 30 steps)
+
+The published setup on libtt 0.2.2 (training and serving), 30 steps instead of 90 (user's choice, 2026-11-24, to fit the
+time), test evaluations of all 1,319 questions after steps 10, 20 and 30 (greedy, 1,024 tokens); every run starts from
+the same policy, whose step-0 accuracy on 0.2.2 is R2's 58.07%. Seeds differ in both Miles seeds (`--seed`,
+`--rollout-seed`: sampling and question order). Runs `exp/rl/runs/r1_s2` and `r1_s3` (versions, rollouts and
+evaluations saved).
+
+| Run | Step 0 | Step 10 | Step 20 | Step 30 |
+| --- | --- | --- | --- | --- |
+| Published `long3` (seed 1234 / 42, libtt 0.2.1) | 58.00% | — | — | 70.74% |
+| `r1_s2` (seed 1235 / 43) | 58.07% (R2) | 66.03% | 66.41% | 68.61% |
+| `r1_s3` (seed 1236 / 44) | 58.07% (R2) | 58.83% | 63.38% | 67.10% |
+
+After 30 steps the three runs span 67.1–70.7% (mean 68.8%), all well above the zero-learning-rate control's 58.07%;
+early progress varies more between seeds (58.8–66.0% after 10 steps). The 95% binomial half-width at these accuracies
+is about 2.5 points, so the published run's 70.7% is within the spread of a single run. The later points of the
+published run (72.4% at 60 and 90) remain single-run results. Each run took 1.5 to 1.6 hours.

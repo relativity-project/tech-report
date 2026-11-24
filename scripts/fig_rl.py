@@ -3,8 +3,8 @@
 Left: training reward per step (the mean over the step's 128 answers) of the published run (grey; its trailing
 15-step mean in black) and of the libtt 0.2.2 seeds (thin coloured lines). Right: test accuracy on all 1,319 GSM8K
 questions (greedy, 1,024 tokens): the published run's in-run evaluations (circles) and fresh-server checks
-(squares), the 0.2.2 seeds' evaluations (dots, with the min-max band over the published run and the seeds for
-steps 0-30), and the zero-learning-rate control (dashed).
+(squares), each libtt 0.2.2 seed's evaluations (coloured dots and lines, from the common step-0 value), and the
+zero-learning-rate control (dashed).
 
 Inputs (this machine's paths, recorded in the output's header):
   published run      ~/tt-work/miles/runs/long3/train.log and ~/tt-work/rl-report-20261117/evaluation-summary.json
@@ -42,7 +42,7 @@ def parse(path):
 pub_r, pub_e = parse(LONG3)
 ends = json.load(open(ENDPOINTS))
 fresh = {0: ends["base1024"]["accuracy"], 90: ends["step90"]["accuracy"]}
-seeds = [parse(p) for p in SEEDS]
+seeds = [d for d in (parse(p) for p in SEEDS) if d[0] and d[1]]  # skip runs with no data yet
 r2_r, r2_e = parse(R2) if os.path.exists(R2) else ({}, {})
 
 W, H, GAP = 6.2, 4.4, 2.0
@@ -117,9 +117,7 @@ for s in early:
         vals.append(r2_e[0])
     if len(vals) >= 2:
         band.append((s, min(vals), max(vals)))
-if len(band) >= 2:
-    poly = [(ax(s), ay(lo)) for s, lo, _ in band] + [(ax(s), ay(hi)) for s, _, hi in reversed(band)]
-    out.append(f"  line({pts(poly)}, close: true, fill: luma(225), stroke: none)")
+# No shaded band: the runs share evaluation steps only at 0 and 30, so each run is drawn as its own line.
 pub_pts = sorted(pub_e.items())
 if pub_pts:
     out.append(f"  line({pts((ax(s), ay(a)) for s, a in [(0, fresh[0])] + pub_pts)}, stroke: (paint: black, thickness: 0.8pt))")
@@ -127,7 +125,10 @@ for s, a in pub_pts:
     out.append(f"  circle(({ax(s):.3f}, {ay(a):.3f}), radius: 0.07, fill: white, stroke: (paint: black, thickness: 0.6pt))")
 for s, a in fresh.items():
     out.append(f"  rect(({ax(s) - 0.07:.3f}, {ay(a) - 0.07:.3f}), ({ax(s) + 0.07:.3f}, {ay(a) + 0.07:.3f}), fill: black)")
+start = r2_e.get(0)  # every seed starts from the same step-0 policy, evaluated in R2 on libtt 0.2.2
 for (_, e), c in zip(seeds, colors):
+    line_pts = ([(0, start)] if start is not None else []) + sorted(e.items())
+    out.append(f"  line({pts((ax(s), ay(a)) for s, a in line_pts)}, stroke: (paint: {c}, thickness: 0.6pt))")
     for s, a in sorted(e.items()):
         out.append(f"  circle(({ax(s):.3f}, {ay(a):.3f}), radius: 0.05, fill: {c}, stroke: none)")
 if r2_e:
