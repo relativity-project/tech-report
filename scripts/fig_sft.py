@@ -1,6 +1,6 @@
-"""fig_sft.py LOG OUT.typ: the SFT figure (sec/fig-sft-loss.typ) from a TorchTitan log, drawn with cetz.
+"""fig_sft.py LOG OUT.typ [WINDOW]: the SFT figure (sec/fig-sft-loss.typ) from a TorchTitan log, drawn with cetz.
 
-Each step's training loss (grey), its 10-step mean (black) and the held-out loss TorchTitan's validator logs
+Each step's training loss (grey), its WINDOW-step trailing mean (black; default 25) and the held-out loss TorchTitan's validator logs
 ("validate step: N loss: ..."; circles). Defines `fig-sft-loss`; the caption is the one in sec/training.typ's
 figure call. Adapted from ~/tt-work/train35/loss_figure.py, which drew the published MetaMathQA run.
 """
@@ -8,6 +8,7 @@ import re
 import sys
 
 log, out = sys.argv[1], sys.argv[2]
+window = int(sys.argv[3]) if len(sys.argv) > 3 else 25
 text = re.sub(r"\x1b\[[0-9;]*m", "", open(log, errors="ignore").read())
 train, held = {}, {}
 for m in re.finditer(r"validate step:\s*(\d+)\s+loss:\s*([\d.]+)", text):
@@ -16,7 +17,7 @@ for m in re.finditer(r"(?<!validate )step:\s*(\d+)\s+loss:\s*([\d.]+)\s+grad_nor
     train.setdefault(int(m.group(1)), float(m.group(2)))
 xs = sorted(train)
 ys = [train[x] for x in xs]
-avg = [sum(ys[max(0, i - 9): i + 1]) / len(ys[max(0, i - 9): i + 1]) for i in range(len(ys))]
+avg = [sum(ys[max(0, i - window + 1): i + 1]) / len(ys[max(0, i - window + 1): i + 1]) for i in range(len(ys))]
 n = xs[-1]
 top = max(0.1, round(max(ys + list(held.values())) * 10 + 0.5) / 10)
 W, H = 11.0, 5.0  # cm

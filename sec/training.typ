@@ -72,7 +72,7 @@ After the first step, a step averaged 29.5 seconds, or about 278 tokens per seco
 #figure(
   placement: auto,
   fig-sft-loss,
-  caption: [Fine-tuning Qwen3.5-9B-Base on ToolACE, 300 steps on four chips: each step's training loss (grey), its ten-step mean (black), and the loss on the held-out 2 per cent (circles). Losses are means over the replies' tokens.],
+  caption: [Fine-tuning Qwen3.5-9B-Base on ToolACE, 300 steps on four chips: each step's training loss (grey), its 25-step trailing mean (black), and the loss on the held-out 2 per cent (circles). Losses are means over the replies' tokens.],
 ) <sft-loss>
 
 The evaluation uses the Berkeley Function Calling Leaderboard @bfcl: its five single-turn categories, 1,240 tests, with BFCL's own prompt (which states the required output format), parser and checker of the calls' syntax trees. Both models run through SGLang-TorchTPU on four chips with greedy decoding, capped at 512 tokens.
