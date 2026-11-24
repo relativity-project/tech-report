@@ -1,8 +1,13 @@
 // Training with TorchTitan.
 // Original throughput and short checks: libtt main at 5e041d48 and the Llama 3
-// work in pull request #554. Completed fine-tuning and GSM8K results checked
-// November 15, 2026 (America/Los_Angeles): ~/tt-work/train35/logs/sft300b.log
-// and gsm8k_{base,sft300b}.completions.json. Training wheel: p2p; evaluation: 4cbcaec3.
+// work in pull request #554.
+// Fine-tuning (checked 2026-11-24 UTC; every number in results/training-validation.md with its script):
+// ToolACE run ~/tt-work/techreport/exp/logs/fc_9b_toolace.log (libtt 0.2.2 2a4333a9 with the fused-loss fixes of
+// branch cross-entropy-accurate-exp, TorchTitan 94063ded, recipe ttx.qwen35_9b_sft_toolace); BFCL with bfcl-eval
+// 2026.3.23 through SGLang-TorchTPU on libtt 0.2.2, ~/tt-work/techreport/fc/out/results.jsonl and fc/lenient.py.
+// MetaMathQA checks: S1 exp/logs/s1c_9b.log; S2 exp/logs/s2_*.log and exp/eval/out/results.jsonl; S3
+// exp/logs/s3_*.log; S4 exp/eval/out/tf_results.jsonl; S5 exp/eval/out/results.jsonl (9b-* tags); published run
+// ~/tt-work/train35/logs/sft300b.log (libtt p2p-peer-addresses 2fe91a3f).
 
 #import "fig-sft-loss.typ": fig-sft-loss
 
@@ -102,8 +107,10 @@ Fine-tuning raises the mean from 62.5 to 85.6 per cent with the same prompt, and
 The training itself was also checked on MetaMathQA @metamath, TorchTitan's own fine-tuning example, with the same recipe. On libtt 0.2.2 it reproduces the earlier run's first 30 losses exactly. With BF16 parameters and AdamW state, most updates are smaller than half a BF16 unit in the last place and are lost: at the peak learning rate about 90 per cent of the feed-forward and attention weights keep their value in a step. On Qwen3.5-2B-Base this acts as a smaller learning rate: FP32 storage at the same rate ends slightly worse on GSM8K (72.9 against 75.0 per cent), and at a quarter of the rate slightly better (75.4 per cent). A scaled-down run agrees with a CPU reference, within half the difference between two data orders, and a CPU reference picks the chips' next token at 98.6 to 99.7 per cent of positions, differing only at near-ties. The GSM8K gain first reported for this run, 64.4 to 87.3 per cent zero-shot within 512 tokens, is mostly the length cap and answer format: the Base model reasons at length and rarely writes “The answer is”, and given 1,024 tokens it solves 82.9 per cent by the same scorer, 4.5 points below the fine-tuned model. Full results are in the repository's results note.
 #import "fig-rl-learning.typ": rl-learning-image
 
-// Miles 7767e158 + two-file disk-delta portability patch. Original run: long3.
-// Endpoint checks: rl-report-20261117; serving libtt 0.2.1 build 39235edd.
+// Miles 7767e158 + two-file disk-delta portability patch. Original run: long3 (training: the miles-attention and
+// dense-flat branches, later #559 and #566; serving libtt 0.2.1 39235edd). Endpoint checks: rl-report-20261117.
+// Format breakdown: ~/tt-work/techreport/exp/r0/classify.py. Zero-learning-rate control and the seeds: libtt 0.2.2,
+// ~/tt-work/techreport/exp/rl/runs/{r2_lr0,r1_s2,r1_s3} (versions.txt in each).
 #block(breakable: false)[
 == Reinforcement learning with Miles <reinforcement-learning>
 
