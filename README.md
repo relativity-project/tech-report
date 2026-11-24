@@ -33,7 +33,7 @@ arXiv asks of a PDF.
 The implementation descriptions include libtt through commit dc73ad4356b454df389d9425e5f8f4250c6ef740 (November 13, 2026). Benchmark, test-count and source-size snapshots retain their stated dates and versions. Numbers
 with a pull-request number come from that pull request's description in the
 git history. The serving benchmark tables are from https://relativity.cc/models/
-as read on November 11, 2026 (libtt 0.1.5 for SGLang-JAX, 0.2.0 for
+as read on November 23, 2026 (libtt 0.2.2 for both SGLang-JAX and
 SGLang-TorchTPU). Hardware facts are from Tenstorrent's documentation.
 
 
