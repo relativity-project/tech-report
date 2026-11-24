@@ -26,8 +26,19 @@ All new runs use libtt 0.2.2 (2a4333a9) unless noted; logs are on the QuietBox u
 | R6 precision A/B (RL) | no (time) | — | — |
 | R7 resume, harder target | no | — | — |
 
-Open gaps: G1 is closed only at reduced scale (2B, 30 steps, CPU; no RL loop reference); G8 has no "fine-tuned on the
-reference" row; G6 has three RL runs over 30 steps only.
+Gaps G1–G9 from the plan:
+
+| Gap | Status |
+| --- | --- |
+| G1 reference run on other hardware | Partly closed: no TPU; a scaled-down SFT run (2B, 8,192 tokens a step, 30 steps) agrees with a CPU reference in both precisions (S3); for RL, only the trainer's log-probabilities are checked against the CPU (R3), not the loop's updates. **Open at full scale.** |
+| G2 training continues after warm-up | Closed: S1/S2 explain the flat MetaMathQA curve (BF16 updates round away; FP32 at a matched rate is no faster); the ToolACE held-out loss falls through step 225 (0.302 at 25, 0.252 at 225). |
+| G3 precision of parameters and optimizer state | Closed: BF16 for SFT (stated in 9.4), FP32 for RL, and why it matters (S1, S2). |
+| G4 control for answer format (SFT) | Closed: S0, S5; for BFCL, the lenient reading. |
+| G5 evaluations during training, unrelated test set | Closed differently (user's choice): held-out loss every 25 steps, and BFCL for the ToolACE run; no GSM8K curve along the MetaMathQA run (S6 dropped). |
+| G6 more than one RL run | Partly closed: three runs to step 30 (R1); steps 30–90 remain one run. |
+| G7 controls for the loop and for format (RL) | Closed: R2 (zero learning rate), R0 and R5 (format). |
+| G8 evaluation on a reference backend | Partly closed: teacher-forced CPU comparison of serving (S4) and of the RL trainer (R3); no reference-trained checkpoint, no independent CPU accuracy. |
+| G9 versions and patches in the text | Closed: 9.5 names the Miles patch and versions; every run records its versions. |
 
 
 ## Criteria written before the comparisons (2026-11-24 03:12 UTC)
