@@ -178,3 +178,10 @@ curve and ends slightly ahead (0.1884; 75.4%). BF16 rounding thus acts as a smal
 change, 1.06×10⁻⁴ of the weight norm per step, lies between the two FP32 arms'), and the published rate suits it. The
 2B Base model's GSM8K errors are mostly format, as the 9B's (S0): 673 of its 1,319 answers run to the cap and only 10
 are correct with "The answer is".
+
+## R5: control for answer format (RL; no new compute)
+
+The prompt's system message already asks for the answer in `\boxed{}` (R0), so the "instruction to box" setting is the
+published one. A lenient scorer that falls back to the response's last number when there is no `\boxed{}`
+(`exp/r0/lenient.py`) changes the endpoints by 0 and +5 answers: step 0 765 → 765, step 90 953 → 958. The 14.25-point
+gain is not a formatting effect.
