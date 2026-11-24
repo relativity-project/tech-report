@@ -258,3 +258,25 @@ an empty one (`<think>\n\n</think>\n\n`, whose first newline merges with the pro
 ChatProcessor masks by prompt length the same way). The ToolACE model therefore writes a short rationale and closes
 the block before its call (1,223 of 1,240 replies); the MetaMathQA model writes its solution inside the open block.
 Both models in each comparison see the same prompt.
+
+## S5: format controls for the MetaMathQA GSM8K gain (most of the published gain is length and format)
+
+Every setting applies to both models: the published 9B Base and its published MetaMathQA fine-tune (`sft300b`), served
+on libtt 0.2.2 (`exp/eval/out/results.jsonl`; prompts `exp/eval/prompts.py`). Lenient = the published scorer ("The
+answer is" N, else the last number); strict = only "The answer is" N. Instruction: one line, `End your response with
+"The answer is N", where N is the final answer as a number.` 8-shot: Wei et al.'s eight GSM8K chain-of-thought
+exemplars (which end "The answer is N.") as earlier chat turns.
+
+| Setting (1,319 questions) | Base lenient | Base strict | Base at cap | Fine-tuned lenient | Fine-tuned strict | Fine-tuned at cap |
+| --- | --- | --- | --- | --- | --- | --- |
+| zero-shot, 512 tokens (published) | 64.44% | 1.06% | 611 | 87.34% | 87.34% | 6 |
+| instruction, 512 | 77.26% | 72.18% | 528 | 86.05% | 85.97% | 6 |
+| 8-shot, 512 | 71.87% | 58.98% | 461 | 85.22% | 85.22% | 1 |
+| zero-shot, 1,024 tokens | 82.87% | 1.29% | 239 | 87.41% | 87.41% | 5 |
+
+The Base model reasons at length and rarely writes "The answer is": with room to finish (1,024 tokens) it solves 82.87%
+by the published scorer, 4.5 points below the fine-tuned model's 87.41%. With the answer format asked for, its strict
+score rises from 1.06% to 72.18%, 13.8 points below the fine-tuned model under the same instruction. The published
+23.05-point gain is therefore mostly the 512-token cap and answer format; the gain in solving that survives the
+controls is about 4.5 points (zero-shot, 1,024 tokens), while the fine-tuned model is far more concise (mean 143 against
+567 tokens) and reliably formatted. The fine-tuned model is insensitive to the settings (85.2–87.4%).
