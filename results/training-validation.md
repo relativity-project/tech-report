@@ -211,3 +211,50 @@ from the reference somewhere in most long completions, as any two BF16 backends 
 same checkpoints on all 1,319 questions are 64.44% (Base; published 64.29% on 0.2.1) and 87.34% (fine-tuned; published
 87.34%), so serving the published checkpoints on 0.2.2 reproduces the published numbers within two answers.
 Limitation (G8): with no full-scale reference training run, there is no "fine-tuned on the reference" row.
+
+## Function calling: Qwen3.5-9B-Base fine-tuned on ToolACE, evaluated on BFCL (the report's SFT result)
+
+Added at the user's request (2026-11-24), replacing the planned MetaMathQA rerun as the report's fine-tuning result.
+
+- **Data.** ToolACE (Team-ACE/ToolACE, Apache-2.0, 11,300 samples): the system prompt (instructions and the functions in
+  JSON) with each sample's first exchange, the user's request and the assistant's reply, a Python-style list of calls
+  such as `[get_weather(city="Paris")]` or a statement that no function applies (`toolace_messages`). TorchTitan's
+  ChatProcessor takes a [user, assistant] pair; `ttx`'s `SystemChatProcessor` also takes a leading system message and
+  masks the loss up to the reply. 32 samples longer than 2,048 tokens are dropped; mean 698 tokens, 56 of them the
+  reply. A fixed 2% (225 samples, by hash of the request) is held out.
+- **Recipe.** The published 9B recipe otherwise unchanged (`ttx.qwen35_9b_sft_toolace`): 4 × 2,048 tokens per chip,
+  AdamW at 2×10⁻⁵, 25 warm-up steps, cosine decay, 300 steps (about 1.1 passes over the data), BF16 parameters and
+  AdamW state; libtt 0.2.2 with both fused-loss fixes (S3), so the logged losses are unbiased. Log
+  `exp/logs/fc_9b_toolace.log` (versions in `.versions`).
+- **Run.** 29.47 s per step after the first (the MetaMathQA run's 29.6 s: the same token count), 2.5 hours. Held-out
+  loss 0.4475 after step 1, 0.3016 at step 25, 0.2677 at 100, 0.2539 at 200, 0.2520 at 300 (flat from step 225 as the
+  rate decays). Mean training loss of the last ten steps 0.167.
+- **Evaluation.** BFCL v4's five single-turn categories (1,240 tests) with bfcl-eval 2026.3.23's own prompt for
+  prompting models (`system_prompt_pre_processing_chat_model`: instructions, the required output format, the functions
+  in JSON), its decoder (`default_decode_ast_prompting`) and AST checker (`ast_checker`; irrelevance passes when the
+  reply holds no decodable call), rendered with the recipe's chat template; SGLang-TorchTPU on four chips, libtt
+  0.2.2, greedy, 512 tokens (`fc/bfcl_prompts.py`, `fc/bfcl_eval_tt.py`). The scorer was checked with replies built
+  from BFCL's possible answers (98–100% pass; the misses are the builder's) and with wrong replies (all fail).
+
+| Category (tests) | Base, strict | Base, lenient | Fine-tuned, strict | Fine-tuned, lenient |
+| --- | --- | --- | --- | --- |
+| simple (400) | 58.25% | 63.25% | 84.75% | 84.75% |
+| multiple (200) | 63.0% | 67.5% | 86.0% | 86.0% |
+| parallel (200) | 51.5% | 64.0% | 85.0% | 85.0% |
+| parallel multiple (200) | 45.0% | 51.5% | 77.0% | 77.0% |
+| irrelevance (240) | 94.6% | 93.8% | 95.0% | 95.0% |
+| **mean of the five** | **62.5%** | **68.0%** | **85.6%** | **85.6%** |
+
+Lenient (`fc/lenient.py`) is the format control: the last bracketed span anywhere in the reply that decodes as a list
+of calls, checked by the same AST checker. The Base model's failures are mostly unreadable replies (375 of 461, for
+example the format's template copied literally after correct reasoning; 82 replies reach the cap); reading its replies
+leniently lifts it only to 68.0%, so the fine-tuned model's 85.6% is a gain of 17.6 points beyond answer format (23.1
+strict). The fine-tuned model's 177 failures: 95 replies with no decodable call (most point out a required parameter
+the question does not give, as both prompts instruct, where BFCL's answer expects a call; 40 reach the cap), 70 calls
+with a wrong function or value, 12 irrelevance tests where it calls a function.
+
+Prompt detail: the template's generation prompt opens a thinking block (`<think>\n`) while the training sequences held
+an empty one (`<think>\n\n</think>\n\n`, whose first newline merges with the prompt's in tokenization; TorchTitan's
+ChatProcessor masks by prompt length the same way). The ToolACE model therefore writes a short rationale and closes
+the block before its call (1,223 of 1,240 replies); the MetaMathQA model writes its solution inside the open block.
+Both models in each comparison see the same prompt.
