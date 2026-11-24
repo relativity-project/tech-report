@@ -1,6 +1,34 @@
 # Training validation results (Sections 9.4 and 9.5)
 
-<!-- SUMMARY TABLE: filled in last -->
+All new runs use libtt 0.2.2 (2a4333a9) unless noted; logs are on the QuietBox under `~/tt-work/techreport/exp`
+(paths relative to it below) and `~/tt-work/techreport/fc`.
+
+| Item | Ran | Headline | Logs |
+| --- | --- | --- | --- |
+| S0 facts of the published SFT run | yes | BF16 parameters and AdamW state; 40,084 MetaMathQA samples; 451 of the Base model's 471 GSM8K errors hit the 512-token cap | `s0/` |
+| S1 do BF16 updates survive? | yes | No: at the peak LR ~90% of feed-forward and attention weights keep their value per step; 0.2.2 reproduces the published losses exactly | `logs/s1c_9b.log`, `s1/` |
+| S2 precision A/B (Qwen3.5-2B) | yes, plus an FP32 arm at LR 5×10⁻⁶ | BF16 storage acts as a smaller LR: FP32 at the same LR ends worse (GSM8K 72.9 vs 75.0%), at ¼ the LR slightly better (75.4%) | `logs/s2_*.log` |
+| S3 reference run | CPU, scaled down (user's choice: no TPU) | Pass: chips vs CPU 0.0063 per step < Y/2 = 0.0092; the offset was a fused-loss bias, diagnosed and fixed | `logs/s3_*.log` |
+| S4 cross-evaluation | teacher-forced instead of generation (user's choice; ~12 h on the CPU) | CPU picks the chips' token at 98.6% (Base) / 99.7% (fine-tuned) of positions; all differences near-ties | `eval/out/tf_*` |
+| S5 format controls | yes | Most of the 23-point GSM8K gain is length and format: at 1,024 tokens the Base solves 82.9% vs 87.4% | `eval/out/results.jsonl` |
+| S6 evals during training | replaced (user: function calling) | ToolACE held-out loss every 25 steps instead | `logs/fc_9b_toolace.log` |
+| S7 unrelated test set | replaced | BFCL for the function-calling run | `../fc/out/` |
+| S8 seeds (SFT) | no (time) | — | — |
+| S9 longer run, step breakdown | no; a 4×-accumulation ToolACE run instead (user) | see "Function calling" | `logs/fc_9b_toolace_ga4.log` |
+| Function calling (ToolACE → BFCL) | yes (user's addition) | BFCL 62.5% → 85.6% (same prompt), 91.0% (non-thinking prompt); Base at most 73.2% with format forgiven | `logs/fc_9b_toolace.log`, `../fc/out/` |
+| Fused-loss fix (libtt) | yes | Logged loss was +0.015 per ignored token (BF16 log V) and +0.0009 from a BF16-precision exp; fixed on libtt branch `cross-entropy-accurate-exp` | `logs/s3_diag*`, `logs/test_*` |
+| R0 facts of the published RL run | yes | Gain is not format: step 0 boxes 99%; wrong values 544 → 262 | `r0/` |
+| R1 seeds | 2 new seeds × 30 steps (user's choice) | TODO-R1 | `rl/runs/r1_*` |
+| R2 zero-learning-rate control | yes | Pass: 31 empty transfers, byte-identical weights, 58.07% at steps 0 and 30 | `rl/runs/r2_lr0` |
+| R3 reference run | CPU log-probability check only (no CPU Miles loop) | TODO-R3 | `r3/` |
+| R4 cross-evaluation of the policy | no (time) | — | — |
+| R5 answer format | yes (rescoring) | Lenient scoring changes the endpoints by 0 / +5 answers | `r0/lenient.out` |
+| R6 precision A/B (RL) | no (time) | — | — |
+| R7 resume, harder target | no | — | — |
+
+Open gaps: G1 is closed only at reduced scale (2B, 30 steps, CPU; no RL loop reference); G8 has no "fine-tuned on the
+reference" row; G6 has three RL runs over 30 steps only.
+
 
 ## Criteria written before the comparisons (2026-11-24 03:12 UTC)
 
