@@ -185,3 +185,29 @@ The prompt's system message already asks for the answer in `\boxed{}` (R0), so t
 published one. A lenient scorer that falls back to the response's last number when there is no `\boxed{}`
 (`exp/r0/lenient.py`) changes the endpoints by 0 and +5 answers: step 0 765 → 765, step 90 953 → 958. The 14.25-point
 gain is not a formatting effect.
+
+## S4: cross-evaluation of serving (teacher-forced; deviation from the plan)
+
+As planned, the CPU reference would generate answers for the same 300 questions. Hugging Face transformers decodes
+Qwen3.5's GatedDeltaNet layers token by token in reference PyTorch code on the CPU: one batch of 64 questions had not
+finished after 70 minutes, putting the two 9B models at about 12 hours. With the user's agreement (2026-11-24) the
+check is teacher-forced instead (`exp/eval/tf_agree.py`): the chips' greedy completions (libtt 0.2.2, SGLang-TorchTPU,
+zero-shot, 512 tokens; token ids and the server's log-probabilities saved) are run through the CPU reference
+(transformers, BF16 weights, one forward pass per completion) on the fixed 300-question subset (`subset300.json`,
+seed 0), and at every completion position the CPU's most likely token is compared with the chips' choice. This tests
+whether serving on the chips computes the same next-token choices as an independent implementation; it does not give
+an independent CPU accuracy.
+
+| Model (300 questions) | Tokens | Chips' token = CPU's top choice | Completions the CPU reproduces token for token | CPU margin where they differ (median / 90th pct / max) | Mean abs. log-prob. difference |
+| --- | --- | --- | --- | --- | --- |
+| 9B Base | 125,033 | 98.58% | 6% (median completion 452 tokens) | 0.125 / 0.25 / 0.625 | 0.018 |
+| 9B fine-tuned on MetaMathQA (`sft300b`) | 41,087 | 99.70% | 67% (median 126 tokens) | 0.125 / 0.125 / 0.375 | 0.005 |
+
+Yardstick (first 50 of the 300 questions, 9B Base, 20,376 positions): chips vs CPU in BF16 98.63%, chips vs CPU in
+FP32 98.54%, CPU in BF16 vs CPU in FP32 99.50%. Every disagreement is a near-tie at BF16 resolution (logits of this size
+are 0.125 apart in BF16), so serving agrees with the reference within reduced precision; it is measurably coarser
+than BF16 arithmetic on the CPU (1.5% vs 0.5% of positions flip). Free-running greedy decoding therefore diverges
+from the reference somewhere in most long completions, as any two BF16 backends do. The libtt 0.2.2 accuracies of the
+same checkpoints on all 1,319 questions are 64.44% (Base; published 64.29% on 0.2.1) and 87.34% (fine-tuned; published
+87.34%), so serving the published checkpoints on 0.2.2 reproduces the published numbers within two answers.
+Limitation (G8): with no full-scale reference training run, there is no "fine-tuned on the reference" row.
