@@ -5,7 +5,7 @@ All new runs use libtt 0.2.2 (2a4333a9) unless noted; logs are on the QuietBox u
 
 | Item | Ran | Headline | Logs |
 | --- | --- | --- | --- |
-| S0 facts of the published SFT run | yes | BF16 parameters and AdamW state; 40,084 MetaMathQA samples; 451 of the Base model's 471 GSM8K errors hit the 512-token cap | `s0/` |
+| S0 facts of the published SFT run | yes | BF16 parameters and AdamW state; 38,915 MetaMathQA samples; 451 of the Base model's 471 GSM8K errors hit the 512-token cap | `s0/` |
 | S1 do BF16 updates survive? | yes | No: at the peak LR ~90% of feed-forward and attention weights keep their value per step; 0.2.2 reproduces the published losses exactly | `logs/s1c_9b.log`, `s1/` |
 | S2 precision A/B (Qwen3.5-2B) | yes, plus an FP32 arm at LR 5×10⁻⁶ | BF16 storage acts as a smaller LR: FP32 at the same LR ends worse (GSM8K 72.9 vs 75.0%), at ¼ the LR slightly better (75.4%) | `logs/s2_*.log` |
 | S3 reference run | CPU, scaled down (user's choice: no TPU) | Pass: chips vs CPU 0.0063 per step < Y/2 = 0.0092; the offset was a fused-loss bias, diagnosed and fixed | `logs/s3_*.log` |
@@ -56,7 +56,7 @@ The run is `sft300b` (log `~/tt-work/train35/logs/sft300b.log`, 2026-11-16).
 | libtt | branch `p2p-peer-addresses` at 2fe91a3f (the point-to-point fix, later merged as #555), wheel built 2026-11-16 03:30 UTC | `~/tt-work/moe/wheels/p2p` |
 | TorchTitan | google-pytorch/torchtitan 94063ded, unmodified; recipe module `tt35` | `git -C ~/tt-work/train35/torchtitan status` |
 | Seeds | dataloader seed 42 (shuffle on), `deterministic = false` | config dump |
-| Data | MetaMathQA revision aa4f34d3; 40,084 samples (10.1% of 395,000) in 300 steps, 9,830,400 tokens of which 7,156,732 count toward the loss | replay of the data pipeline: `exp/s0/count_samples.py 300` |
+| Data | MetaMathQA revision aa4f34d3; 38,915 samples (9.9% of 395,000) in 300 steps, 9,830,400 token slots (each chip's 8,192-token row holds whole samples and padding), 7,156,732 of them counting toward the loss | replay of the data pipeline (`exp/s0/count_samples.py 300` counts 40,084 row starts, which include 1,169 padding runs; the sample count excludes them) |
 
 GSM8K errors of the saved completions (`exp/s0/classify.py`; tokens counted with the recipe's tokenizer; 512-token cap):
 
@@ -94,7 +94,7 @@ so libtt 0.2.2 reproduces it.
 tensors.) At the peak learning rate, about 89% of feed-forward and 92% of attention weights, and over 98% of the
 embedding and LM-head weights, keep their stored value in a step: AdamW's update is smaller than half a BF16 unit in
 the last place. The stored change is about half the norm of AdamW's update. One rounding of (weight − u) into BF16
-predicts the changed fraction to within 0.1 point of what the chips store, so the loss comes from BF16 storage
+predicts the changed fraction to within 0.25 point of what the chips store (within 0.1 point at the peak rate), so the loss comes from BF16 storage
 itself, not from the device's arithmetic. The hypothesis holds: with BF16 parameters and AdamW state, most updates
 of this recipe round away, and S2 measures what that costs.
 
@@ -162,7 +162,7 @@ training trajectories otherwise agree: the effect of FP32 storage on the mean lo
 chips and +0.0303 on the CPU.
 
 **The offset is a bias in the logged value of the fused loss, now fixed** (libtt branch `cross-entropy-accurate-exp`).
-One-step checks on the chips, step-1 loss (CPU reference 0.41594):
+One-step checks on the chips, step-1 loss (CPU reference 0.41595):
 
 | Chips' loss path | Step-1 loss | − CPU |
 | --- | --- | --- |
@@ -175,8 +175,8 @@ One-step checks on the chips, step-1 loss (CPU reference 0.41594):
 Two causes. (1) Most of it: TorchTitan's fused loss zeroes the hidden state of every ignored token (prompt and
 padding, label −100), whose loss is then exactly log(V), and subtracts log(V) per ignored token from the sum, which
 assumes the kernel returns that value in FP32 as the TPU kernel does. tt-train's kernel returns BF16 losses:
-log(248,320) = 12.4225 becomes 12.4375, 0.015 per ignored token, and with 0.37 ignored tokens per answer token in this
-MetaMathQA batch, +0.0056 per answer token (about +0.17 for ToolACE, where 92% of tokens are prompt). libtt's wrapper
+log(248,320) = 12.4225 becomes 12.4375, 0.015 per ignored token, and with 0.39 ignored tokens per answer token in this
+step's batch (2,313 against 5,879), +0.0059 per answer token, the measured 0.42252 − 0.41660 (about +0.17 for ToolACE, where 92% of tokens are prompt). libtt's wrapper
 now returns log(V) exactly for all-zero rows. (2) The rest: on Blackhole the kernel's sum of exponentials used a
 BF16-precision exp (`_sfpu_exp_21f_bf16_tti_`); the forward now uses the accurate FP32 exp. The backward
 normalizes the softmax by its own sum and ignores the saved log-sum-exp, so gradients were never affected (step-1
@@ -186,11 +186,12 @@ curve carry the bias.
 
 ## S2: precision A/B on Qwen3.5-2B-Base (BF16 storage acts as a smaller learning rate)
 
-The published 9B recipe (MetaMathQA, 4 × 2,048 tokens per chip, 300 steps, warm-up 25 steps, cosine decay) on
+The published 9B recipe (MetaMathQA, 8,192 tokens per chip in whole samples of up to 2,048 tokens, 300 steps, warm-up 25 steps, cosine decay) on
 Qwen3.5-2B-Base (the untied copy), on libtt 0.2.2, three arms that differ only as listed (`exp/logs/s2_*.log`; update
 snapshots `exp/s2/*`; GSM8K `exp/eval/out/results.jsonl`, zero-shot, 512 tokens, as published). The held-out loss is
-on 626 MetaMathQA samples the 300-step data pipeline never reads (a fixed 1/400 by hash of the query, minus all 30,473
-queries the pipeline processes, `exp/s0/consumed_queries.py`); the training data are the published stream.
+on 626 MetaMathQA samples the 300-step data pipeline never reads (a fixed 1/400 by hash of the query, minus all 30,468
+queries the pipeline processes, `exp/s0/consumed_queries.py`); the training data are the published stream. Each
+validation reads 4 × 8,192 tokens per rank, the same batches each time: about 85% of the held-out samples.
 
 | Arm | Held-out loss: step 25 | step 100 | step 200 | step 300 | Stored change / weight at step 25 | GSM8K (strict = lenient) |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -228,13 +229,15 @@ an independent CPU accuracy.
 
 | Model (300 questions) | Tokens | Chips' token = CPU's top choice | Completions the CPU reproduces token for token | CPU margin where they differ (median / 90th pct / max) | Mean abs. log-prob. difference |
 | --- | --- | --- | --- | --- | --- |
-| 9B Base | 125,033 | 98.58% | 6% (median completion 452 tokens) | 0.125 / 0.25 / 0.625 | 0.018 |
+| 9B Base | 125,033 | 98.58% | 6% (median completion 451 tokens) | 0.125 / 0.375 / 0.625 | 0.018 |
 | 9B fine-tuned on MetaMathQA (`sft300b`) | 41,087 | 99.70% | 67% (median 126 tokens) | 0.125 / 0.125 / 0.375 | 0.005 |
 
 Yardstick (first 50 of the 300 questions, 9B Base, 20,376 positions): chips vs CPU in BF16 98.63%, chips vs CPU in
-FP32 98.54%, CPU in BF16 vs CPU in FP32 99.50%. Every disagreement is a near-tie at BF16 resolution (logits of this size
-are 0.125 apart in BF16), so serving agrees with the reference within reduced precision; it is measurably coarser
-than BF16 arithmetic on the CPU (1.5% vs 0.5% of positions flip). Free-running greedy decoding therefore diverges
+FP32 98.54%, CPU in BF16 vs CPU in FP32 99.50%. Where a completion first diverges, the CPU's top two tokens are
+nearly tied at BF16 resolution (logits of this size are 0.125 apart in BF16; only first divergences were recorded:
+282 of about 1,780 differing positions for the Base model, 100 of about 124 for the fine-tuned one), so serving
+agrees with the reference within reduced precision; it is measurably coarser than BF16 arithmetic on the CPU (1.4%
+vs 0.5% of positions differ). Free-running greedy decoding therefore diverges
 from the reference somewhere in most long completions, as any two BF16 backends do. The libtt 0.2.2 accuracies of the
 same checkpoints on all 1,319 questions are 64.44% (Base; published 64.29% on 0.2.1) and 87.34% (fine-tuned; published
 87.34%), so serving the published checkpoints on 0.2.2 reproduces the published numbers within two answers.
@@ -249,9 +252,11 @@ Added at the user's request (2026-11-24), replacing the planned MetaMathQA rerun
   such as `[get_weather(city="Paris")]` or a statement that no function applies (`toolace_messages`). TorchTitan's
   ChatProcessor takes a [user, assistant] pair; `ttx`'s `SystemChatProcessor` also takes a leading system message and
   masks the loss up to the reply. 32 samples longer than 2,048 tokens are dropped; mean 698 tokens, 56 of them the
-  reply. A fixed 2% (225 samples, by hash of the request) is held out.
-- **Recipe.** The published 9B recipe otherwise unchanged (`ttx.qwen35_9b_sft_toolace`): 4 × 2,048 tokens per chip,
-  AdamW at 2×10⁻⁵, 25 warm-up steps, cosine decay, 300 steps (about 1.1 passes over the data), BF16 parameters and
+  reply. A fixed 2% (225 samples, by hash of the request) is held out; each validation scores about 85% of it (4 × 8,192
+  tokens per rank, the same batches each time).
+- **Recipe.** The published 9B recipe otherwise unchanged (`ttx.qwen35_9b_sft_toolace`): 8,192 tokens per chip (whole samples
+  of up to 2,048 tokens), AdamW at 2×10⁻⁵, 25 warm-up steps, cosine decay, 300 steps (about 1.25 passes over the data:
+  a replay of the pipeline reads 13,855 samples, of 11,046 in the training split), BF16 parameters and
   AdamW state; libtt 0.2.2 with both fused-loss fixes (S3), so the logged losses are unbiased. Log
   `exp/logs/fc_9b_toolace.log` (versions in `.versions`).
 - **Run.** 29.47 s per step after the first (the MetaMathQA run's 29.6 s: the same token count), 2.5 hours. Held-out
@@ -262,7 +267,8 @@ Added at the user's request (2026-11-24), replacing the planned MetaMathQA rerun
   in JSON), its decoder (`default_decode_ast_prompting`) and AST checker (`ast_checker`; irrelevance passes when the
   reply holds no decodable call), rendered with the recipe's chat template; SGLang-TorchTPU on four chips, libtt
   0.2.2, greedy, 512 tokens (`fc/bfcl_prompts.py`, `fc/bfcl_eval_tt.py`). The scorer was checked with replies built
-  from BFCL's possible answers (98–100% pass; the misses are the builder's) and with wrong replies (all fail).
+  from BFCL's possible answers (98–100% pass; the misses are the builder's) and with wrong replies (all fail;
+  `fc/scorer_check.py`, output `fc/out/scorer_check.out`).
 
 | Category (tests) | Base, thinking prompt | lenient | Base, non-thinking | lenient | Fine-tuned, thinking | Fine-tuned, non-thinking |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -284,8 +290,9 @@ The Base model's failures are mostly unreadable replies (thinking prompt: 375 of
 reasoning, or placeholders inside calls; non-thinking: 434 of 525, placeholders inside calls). Forgiving its format
 lifts it to 73.2% at best, so fine-tuning adds 12.4 points beyond answer format with the same (thinking) prompt and
 17.9 points with each model at its best (91.0% vs 73.2%). With the thinking prompt the fine-tuned model writes a
-rationale first (mean 205 tokens; 40 replies reach the cap) and its failures include 95 replies with no decodable call,
-most pointing out a required parameter the question omits (as both prompts instruct) where BFCL's answer expects a call;
+rationale first (mean 205 tokens; 41 replies reach the cap) and its failures include 95 replies with no decodable call,
+40 cut off at the cap and most of the rest pointing out a required parameter the question omits (as both prompts
+instruct) where BFCL's answer expects a call;
 with the non-thinking prompt it answers directly (mean 39 tokens; one reply reaches the cap) and its 106 failures are
 73 calls with a wrong function or value, 14 replies with no decodable call and 19 irrelevance tests where it calls.
 
