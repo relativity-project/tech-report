@@ -112,3 +112,27 @@ AdamW's step and the disk-delta weight transfer all run as in the published run.
 - Step 0 on libtt 0.2.2 (58.07%) matches the published step 0 on 0.2.1 (58.00%, 765 correct) within one answer.
 
 Both criteria hold: the loop itself (rollouts, transfer, reload) does not change the policy.
+
+## S3: reference run on the CPU (pass; with a constant offset from the fused loss)
+
+No TPU was available (user's decision, 2026-11-24): the reference is the CPU, so the recipe is scaled down. Qwen3.5-2B
+Base (an untied copy of the checkpoint: `lm_head.weight` = the embeddings, as TorchTitan's 2B model keeps a separate
+output layer), one 2,048-token sequence per rank on four ranks (8,192 tokens a step instead of 32,768), the 300-step
+learning-rate schedule stopped after 30 steps, BF16 and FP32 parameters and AdamW state. The chips run
+`ttx.qwen35_2b_sft_{bf16,fp32}_small`; the CPU runs the same recipe as four gloo ranks with PyTorch's cross-entropy
+and attention (`*_small_cpu`; logs `exp/logs/s3_{tt,cpu}_{bf16,fp32}.log`; `exp/losses.py --diff`).
+
+| Comparison (steps 1–30) | Mean abs. per-step difference | Max | Step 1 |
+| --- | --- | --- | --- |
+| Yardstick: chips, dataloader seed 42 vs 43 (BF16) | 0.0183 | 0.0615 | −0.0125 |
+| Chips vs CPU, BF16 | 0.0063 | 0.0079 | +0.0075 |
+| Chips vs CPU, FP32 | 0.0064 | 0.0078 | +0.0075 |
+
+Both precisions pass (0.0063 < Y/2 = 0.0092). The difference is a near-constant offset (chips higher by +0.0063,
+standard deviation 0.0009 over the 30 steps, in both precisions), present at step 1 before any update. One-step
+diagnostics on the chips split it: with PyTorch's cross-entropy instead of the fused loss (tt-train's cross-entropy
+kernel, #546) the step-1 loss is 0.4170 (CPU 0.4159), and without splash attention as well 0.4168. So the fused loss
+reports about 0.0065 (1.5%) too high, splash attention adds 0.0002, and the rest of the BF16 forward pass 0.0008
+(0.2%). The training trajectories agree: the effect of FP32 storage on the mean loss over steps 11–30 is +0.0302 on
+the chips and +0.0303 on the CPU. **Follow-up for libtt:** the fused loss kernel's value is biased upward by ~1.5%
+(the published 9B loss curve was logged through it); its gradients evidently agree, since the curves run parallel.

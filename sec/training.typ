@@ -35,7 +35,7 @@ _Eliminating tile padding._ Tiled storage matters throughout the backward pass. 
 
 _Freeing collective memory._ Collectives need temporary storage, and libtt reduces it: Large reduce-scatter operations run in pieces so they no longer need one large contiguous allocation. This makes more of each chip's memory available to the model.
 
-== Microbenchmarks and checks <training-checks>
+== Throughput and CPU checks <training-checks>
 
 @training-runs reports throughput for full-size models on four chips.
 
