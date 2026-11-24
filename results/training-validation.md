@@ -129,13 +129,32 @@ and attention (`*_small_cpu`; logs `exp/logs/s3_{tt,cpu}_{bf16,fp32}.log`; `exp/
 | Chips vs CPU, FP32 | 0.0064 | 0.0078 | +0.0075 |
 
 Both precisions pass (0.0063 < Y/2 = 0.0092). The difference is a near-constant offset (chips higher by +0.0063,
-standard deviation 0.0009 over the 30 steps, in both precisions), present at step 1 before any update. One-step
-diagnostics on the chips split it: with PyTorch's cross-entropy instead of the fused loss (tt-train's cross-entropy
-kernel, #546) the step-1 loss is 0.4170 (CPU 0.4159), and without splash attention as well 0.4168. So the fused loss
-reports about 0.0065 (1.5%) too high, splash attention adds 0.0002, and the rest of the BF16 forward pass 0.0008
-(0.2%). The training trajectories agree: the effect of FP32 storage on the mean loss over steps 11–30 is +0.0302 on
-the chips and +0.0303 on the CPU. **Follow-up for libtt:** the fused loss kernel's value is biased upward by ~1.5%
-(the published 9B loss curve was logged through it); its gradients evidently agree, since the curves run parallel.
+standard deviation 0.0009 over the 30 steps, in both precisions), present at step 1 before any update, and the
+training trajectories otherwise agree: the effect of FP32 storage on the mean loss over steps 11–30 is +0.0302 on the
+chips and +0.0303 on the CPU.
+
+**The offset is a bias in the logged value of the fused loss, now fixed** (libtt branch `cross-entropy-accurate-exp`).
+One-step checks on the chips, step-1 loss (CPU reference 0.41594):
+
+| Chips' loss path | Step-1 loss | − CPU |
+| --- | --- | --- |
+| Fused loss, libtt 0.2.2 (tt-train's cross-entropy kernel, #546) | 0.42341 | +0.0075 |
+| PyTorch's cross-entropy instead | 0.41697 | +0.0010 |
+| … and PyTorch attention instead of splash attention | 0.41677 | +0.0008 |
+| Fused loss with the forward kernel's accurate exp | 0.42252 | +0.0066 |
+| Fused loss with the accurate exp and log(V) exact for ignored rows | 0.41660 | +0.0007 |
+
+Two causes. (1) Most of it: TorchTitan's fused loss zeroes the hidden state of every ignored token (prompt and
+padding, label −100), whose loss is then exactly log(V), and subtracts log(V) per ignored token from the sum, which
+assumes the kernel returns that value in FP32 as the TPU kernel does. tt-train's kernel returns BF16 losses:
+log(248,320) = 12.4225 becomes 12.4375, 0.015 per ignored token, and with 0.37 ignored tokens per answer token in this
+MetaMathQA batch, +0.0056 per answer token (about +0.17 for ToolACE, where 92% of tokens are prompt). libtt's wrapper
+now returns log(V) exactly for all-zero rows. (2) The rest: on Blackhole the kernel's sum of exponentials used a
+BF16-precision exp (`_sfpu_exp_21f_bf16_tti_`); the forward now uses the accurate FP32 exp. The backward
+normalizes the softmax by its own sum and ignores the saved log-sum-exp, so gradients were never affected (step-1
+gradient norms: 19.50 fused, 19.63 with PyTorch's loss, 19.38 on the CPU). The ToolACE run below uses both fixes (the
+kernel as a `TT_METAL_KERNEL_PATH` overlay, the wrapper patched in place); the MetaMathQA runs and the published
+curve carry the bias.
 
 ## S2: precision A/B on Qwen3.5-2B-Base (BF16 storage acts as a smaller learning rate)
 
