@@ -2,7 +2,7 @@
 
 == Performance <measure>
 
-The published Blackhole serving results were measured on a TT-QuietBox 2: Four Blackhole chips on two cards, an AMD Ryzen 7 9700X, and 256 gigabytes of host memory @blackhole. They come from the project's pages @relativity, where the scripts that produce them are also to be found. The SGLang-JAX figures were taken with version 0.1.5 of libtt, of October 30, and the SGLang-TorchTPU figures with version 0.2.0, of November 8. Single-request figures are medians of five runs after two to warm up. With several chips the model is divided by tensor parallelism over all of them.
+The published Blackhole serving results were measured on a TT-QuietBox 2: Four Blackhole chips on two cards, an AMD Ryzen 7 9700X, and 256 gigabytes of host memory @blackhole. They come from the project's pages @relativity, where the scripts that produce them are also to be found. All of them were taken with version 0.2.2 of libtt. Single-request figures are medians of five runs after two to warm up. With several chips the model is divided by tensor parallelism over all of them.
 
 === One request
 
@@ -10,7 +10,7 @@ The published Blackhole serving results were measured on a TT-QuietBox 2: Four B
 
 #tab-single <single-table>
 
-Speed does not necessarily grow in proportion to chips: Qwen3-8B on two chips is 1.74 times as fast as on one, and on four chips 2.66 times. The reason is that only the reading of weights is divided by four. The rest of a step is not: the small programs between the projections, the collectives, the choice of a token. Of the two dense models that fit on one chip, the larger gains more; Qwen3-14B is 3.15 times as fast on four chips.
+Speed does not necessarily grow in proportion to chips: Qwen3-8B on two chips is 1.72 times as fast as on one, and on four chips 2.65 times. The reason is that only the reading of weights is divided by four. The rest of a step is not: the small programs between the projections, the collectives, the choice of a token. Of the two dense models that fit on one chip, the larger gains more; Qwen3-14B is 3.09 times as fast on four chips.
 
 === Many requests
 
@@ -50,7 +50,7 @@ Per unit of memory bandwidth, one Blackhole matches or exceeds one TPU at single
 
 ]
 
-#block(breakable: false)[
+#block[
 === Upstream Tenstorrent comparison
 
 We also compare with the upstream Tenstorrent software stack: a vLLM plugin that requires separate TTNN model definitions together with custom scheduling, execution, KV-cache handling and runtime compatibility patches. That stack is compared against two libtt-based stacks on the same chip: sglang served via TorchTPU, and sglang-jax.
@@ -95,4 +95,4 @@ As we can see, the sglang-jax implementation on libtt is as performant or better
 
 #tab-spec <spec-table>
 
-Libtt also supports speculative decoding, and @spec-table shows the gain. Under SGLang-JAX on four chips, the model's own draft layer speeds up a short factual prompt by 2.5× and a long summary by 40%. The gain depends on how often the draft is right.
+Libtt also supports speculative decoding, and @spec-table shows the gain. Under SGLang-JAX on four chips, the model's own draft layer speeds up a short factual prompt by 2.6× and a long summary by 24%. The gain depends on how often the draft is right.
