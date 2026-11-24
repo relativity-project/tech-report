@@ -182,17 +182,23 @@ One-step checks on the chips, step-1 loss (CPU reference 0.41595):
 | … and PyTorch attention instead of splash attention | 0.41677 | +0.0008 |
 | Fused loss with the forward kernel's accurate exp | 0.42252 | +0.0066 |
 | Fused loss with the accurate exp and log(V) exact for ignored rows | 0.41660 | +0.0007 |
+| Fused loss with FP32 losses (libtt branch at bb56c4c6) | 0.41697 | +0.0010 |
 
-Two causes. (1) Most of it: TorchTitan's fused loss zeroes the hidden state of every ignored token (prompt and
+Three causes. (1) Most of it: TorchTitan's fused loss zeroes the hidden state of every ignored token (prompt and
 padding, label −100), whose loss is then exactly log(V), and subtracts log(V) per ignored token from the sum, which
 assumes the kernel returns that value in FP32 as the TPU kernel does. tt-train's kernel returns BF16 losses:
 log(248,320) = 12.4225 becomes 12.4375, 0.015 per ignored token, and with 0.39 ignored tokens per answer token in this
 step's batch (2,313 against 5,879), +0.0059 per answer token, the measured 0.42252 − 0.41660 (about +0.17 for ToolACE, where 92% of tokens are prompt). libtt's wrapper
-now returns log(V) exactly for all-zero rows. (2) The rest: on Blackhole the kernel's sum of exponentials used a
+returned log(V) exactly for all-zero rows (first commit, 56d7f486); the branch now returns FP32 losses from the kernel
+instead (bb56c4c6). (2) The rest: on Blackhole the kernel's sum of exponentials used a
 BF16-precision exp (`_sfpu_exp_21f_bf16_tti_`); the forward now uses the accurate FP32 exp. The backward
 normalizes the softmax by its own sum and ignores the saved log-sum-exp, so gradients were never affected (step-1
-gradient norms: 19.50 fused, 19.63 with PyTorch's loss, 19.38 on the CPU). The ToolACE run below uses both fixes (the
-kernel as a `TT_METAL_KERNEL_PATH` overlay, the wrapper patched in place); the MetaMathQA runs and the published
+gradient norms: 19.50 fused, 19.63 with PyTorch's loss, 19.38 on the CPU). (3) Found with FP32 losses: the kernel's
+FPU row sum and final add read FP32 operands as TF32, truncating every loss by about 4e-4; bb56c4c6 finishes each row
+in FP32 on the SFPU, and the fused loss then equals PyTorch's cross-entropy on the chips (0.41697; log
+`logs/s3_diag_celoss_f32.log`, libtt loaded from the branch's wheel, `run_tr_wheel.sh`). The ToolACE run below uses fixes (1) and (2) as in
+56d7f486 (the kernel as a `TT_METAL_KERNEL_PATH` overlay, the wrapper patched in place), so its logged losses read
+about 0.0004 low from (3), at most one in the third decimal of the losses the report quotes; the MetaMathQA runs and the published
 curve carry the bias.
 
 ## S2: precision A/B on Qwen3.5-2B-Base (BF16 storage acts as a smaller learning rate)

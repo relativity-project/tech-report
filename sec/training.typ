@@ -3,7 +3,7 @@
 // work in pull request #554.
 // Fine-tuning (checked 2026-11-24 UTC; every number in results/training-validation.md with its script):
 // ToolACE run ~/tt-work/techreport/exp/logs/fc_9b_toolace.log (libtt 0.2.2 2a4333a9 with the fused-loss fixes of
-// branch cross-entropy-accurate-exp, TorchTitan 94063ded, recipe ttx.qwen35_9b_sft_toolace); BFCL with bfcl-eval
+// branch cross-entropy-accurate-exp as of 56d7f486, TorchTitan 94063ded, recipe ttx.qwen35_9b_sft_toolace); BFCL with bfcl-eval
 // 2026.3.23 through SGLang-TorchTPU on libtt 0.2.2, ~/tt-work/techreport/fc/out/results.jsonl and fc/lenient.py.
 // MetaMathQA checks: S1 exp/logs/s1c_9b.log; S2 exp/logs/s2_*.log and exp/eval/out/results.jsonl; S3
 // exp/logs/s3_*.log; S4 exp/eval/out/tf_results.jsonl; S5 exp/eval/out/results.jsonl (9b-* tags); published run
