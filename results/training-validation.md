@@ -136,3 +136,26 @@ reports about 0.0065 (1.5%) too high, splash attention adds 0.0002, and the rest
 (0.2%). The training trajectories agree: the effect of FP32 storage on the mean loss over steps 11–30 is +0.0302 on
 the chips and +0.0303 on the CPU. **Follow-up for libtt:** the fused loss kernel's value is biased upward by ~1.5%
 (the published 9B loss curve was logged through it); its gradients evidently agree, since the curves run parallel.
+
+## S2: precision A/B on Qwen3.5-2B-Base (BF16 storage acts as a smaller learning rate)
+
+The published 9B recipe (MetaMathQA, 4 × 2,048 tokens per chip, 300 steps, warm-up 25 steps, cosine decay) on
+Qwen3.5-2B-Base (the untied copy), on libtt 0.2.2, three arms that differ only as listed (`exp/logs/s2_*.log`; update
+snapshots `exp/s2/*`; GSM8K `exp/eval/out/results.jsonl`, zero-shot, 512 tokens, as published). The held-out loss is
+on 626 MetaMathQA samples the 300-step data pipeline never reads (a fixed 1/400 by hash of the query, minus all 30,473
+queries the pipeline processes, `exp/s0/consumed_queries.py`); the training data are the published stream.
+
+| Arm | Held-out loss: step 25 | step 100 | step 200 | step 300 | Stored change / weight at step 25 | GSM8K (strict = lenient) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Base (no training) | — | — | — | — | — | 56.18% lenient, 0.76% strict |
+| BF16 parameters and AdamW state, peak LR 2×10⁻⁵ (the 9B's) | 0.2133 | 0.2010 | 0.1920 | 0.1902 | 1.06×10⁻⁴ (3.3% of elements change) | 74.98% |
+| FP32, BF16 compute, peak LR 2×10⁻⁵ | 0.2314 | 0.2250 | 0.2049 | 0.1930 | 1.68×10⁻⁴ (99.9%) | 72.93% |
+| FP32, BF16 compute, peak LR 5×10⁻⁶ | 0.2145 | 0.2006 | 0.1927 | **0.1884** | 5.0×10⁻⁵ (99.7%) | **75.36%** |
+
+With BF16 storage, the 2B loses updates as the 9B does in S1 (13% of feed-forward elements change at the peak LR).
+That does not hold the recipe back: at the same learning rate, FP32 storage is worse until the rate has decayed and
+ends behind (held-out 0.1930 vs 0.1902; GSM8K 72.9% vs 75.0%). At a quarter of the learning rate, FP32 tracks the BF16
+curve and ends slightly ahead (0.1884; 75.4%). BF16 rounding thus acts as a smaller effective learning rate (its stored
+change, 1.06×10⁻⁴ of the weight norm per step, lies between the two FP32 arms'), and the published rate suits it. The
+2B Base model's GSM8K errors are mostly format, as the 9B's (S0): 673 of its 1,319 answers run to the cap and only 10
+are correct with "The answer is".
