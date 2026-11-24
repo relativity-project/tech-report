@@ -43,6 +43,33 @@ fallback, 160 of them in completions that hit the cap. The fine-tuned model stop
 errors are wrong numbers. The published 23-point gain therefore mixes answer format and stopping with reasoning; S5
 separates them.
 
+## S1: do the BF16 weight updates survive? (lost-update hypothesis: confirmed)
+
+The published 9B recipe on libtt 0.2.2, from the Base checkpoint, stopped after 30 of its 300 steps (log
+`exp/logs/s1c_9b.log`). After steps 1, 5, 10, 25 and 30, the hook in `exp/ttx/config_registry.py` read 61 tensors
+(2.89 billion elements: embeddings, LM head, final norm, and every tensor of layers 0 and 16 (GatedDeltaNet) and 3 and
+31 (full attention)) before and after the optimizer step, and recomputed AdamW's update u in FP32 from the optimizer
+state. Analysis `exp/s1/analyze.py s1` (full output `exp/s1/analyze.out`).
+
+The run's losses equal the published run's (`sft300b`, libtt 2fe91a3f) at all 30 steps to the five printed digits,
+so libtt 0.2.2 reproduces it.
+
+| Step | LR | Elements changed | of feed-forward | of attention projections | of embeddings / LM head | update / weight (stored) | update / weight (AdamW's u) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 8.0×10⁻⁷ | 0.49% | 1.75% | 1.30% | 0.01% / 0.03% | 4.4×10⁻⁶ | 3.0×10⁻⁵ |
+| 5 | 4.0×10⁻⁶ | 2.2% | 7.8% | 5.6% | 0.07% / 0.18% | 4.8×10⁻⁵ | 1.2×10⁻⁴ |
+| 10 | 8.0×10⁻⁶ | 2.7% | 8.9% | 6.4% | 0.13% / 0.77% | 6.6×10⁻⁵ | 1.6×10⁻⁴ |
+| 25 | 2.0×10⁻⁵ (peak) | 3.6% | 10.7% | 8.2% | 0.30% / 1.65% | 1.1×10⁻⁴ | 2.1×10⁻⁴ |
+| 30 | 2.0×10⁻⁵ | 3.3% | 9.6% | 7.4% | 0.30% / 1.43% | 9.9×10⁻⁵ | 1.9×10⁻⁴ |
+
+(Attention projections: the GatedDeltaNet and full-attention projections together; ratios are norms over all 61
+tensors.) At the peak learning rate, about 89% of feed-forward and 92% of attention weights, and over 98% of the
+embedding and LM-head weights, keep their stored value in a step: AdamW's update is smaller than half a BF16 unit in
+the last place. The stored change is about half the norm of AdamW's update. One rounding of (weight − u) into BF16
+predicts the changed fraction to within 0.1 point of what the chips store, so the loss comes from BF16 storage
+itself, not from the device's arithmetic. The hypothesis holds: with BF16 parameters and AdamW state, most updates
+of this recipe round away, and S2 measures what that costs.
+
 ## R0: facts of the published RL run (no new compute)
 
 The run is `long3` (`~/tt-work/miles/runs/long3`, 2026-11-16/17); endpoint checks in `~/tt-work/rl-report-20261117`.
@@ -68,3 +95,20 @@ Test errors at the endpoints (`exp/r0/classify.py`, 1,024-token limit):
 
 The step-0 policy already boxes 1,310 of its 1,319 answers. The gain is wrong values becoming right (544 → 262
 wrong), not formatting; responses get longer and more of them reach the limit (10 → 104).
+
+## R2: zero-learning-rate control (pass)
+
+The published RL setup on libtt 0.2.2 (training and serving), seeds 1234 / 42, for 30 steps with the learning rate
+set to 0 (`exp/rl/runs/r2_lr0`; versions in `versions.txt`). Rollouts, rewards, the GRPO loss, the backward pass,
+AdamW's step and the disk-delta weight transfer all run as in the published run.
+
+- All 31 weight transfers (the initial sync and one after each step) report 0.00% of BF16 weights changed and
+  0.00 GB sent. After step 30 the engine's checkpoint file is byte-identical to the original Qwen3-0.6B weights
+  (MD5 `fed58aa6b81fb7e1…` for both).
+- Test accuracy (all 1,319 questions, greedy, 1,024 tokens): 766 correct (58.07%) at step 0 and at step 30, with the
+  same truncation rate (0.76%). Mean response length 191.3 and 191.1 tokens: a few greedy responses differ slightly,
+  as batch composition changes the server's arithmetic, but no answer's correctness changes.
+- The mean training reward stays at 0.572 over the 30 steps (no learning).
+- Step 0 on libtt 0.2.2 (58.07%) matches the published step 0 on 0.2.1 (58.00%, 765 correct) within one answer.
+
+Both criteria hold: the loop itself (rollouts, transfer, reload) does not change the policy.
