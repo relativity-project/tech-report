@@ -105,7 +105,7 @@ Both models answer BFCL's five single-turn categories @bfcl (1,240 tests), score
 
 Fine-tuning raises the mean from 64.8 to 88.5 per cent with the same prompt, and to 91.0 per cent with the non-thinking prompt that matches the training format (@bfcl-results); read leniently, the Base model reaches at most 75.8 per cent.
 
-We also checked the training itself on MetaMathQA @metamath, TorchTitan's own fine-tuning example. With BF16 parameters and optimizer state, many small updates are rounded away, but in effect this only lowers the learning rate: on a smaller model, the same training in FP32 ends no better. A scaled-down run on the chips closely follows the same run on a CPU, and in serving, the chips choose the same next token as a CPU reference at about 99 per cent of positions, with most differences at the limit of BF16 precision. The GSM8K improvement first reported for this run came mostly from shorter answers in the expected format.
+We also checked the training against a CPU on MetaMathQA @metamath, TorchTitan's own fine-tuning example. A scaled-down run with the same starting point and data gives the same losses on the chips as on the CPU, to within 0.2 per cent per step on average, in both BF16 and FP32. In serving, the chips choose the same next token as a CPU reference at about 99 per cent of positions, with most differences at the limit of BF16 precision. The GSM8K improvement first reported for this run came mostly from shorter answers in the expected format.
 #import "fig-rl-learning.typ": rl-learning-image
 
 // Miles 7767e158 + two-file disk-delta portability patch. Original run: long3 (training: the miles-attention and
