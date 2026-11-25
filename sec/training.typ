@@ -111,10 +111,10 @@ We also checked the training against a CPU on MetaMathQA @metamath, TorchTitan's
 // Miles 7767e158 + two-file disk-delta portability patch. Runs: the original long3 (seed 1234 / 42; training: the
 // miles-attention and dense-flat branches, later #559 and #566; serving libtt 0.2.1 39235edd) and
 // ~/tt-work/techreport/exp/rl/runs/f6_s2, f6_s3 (seeds 1235 / 43, 1236 / 44; libtt 0.2.2 release 2c68912a, training
-// and serving); versions.txt in each. Interim
-// (2026-11-25 09:00 UTC): f6_s3 at step 61 of 90. Format breakdown: ~/tt-work/techreport/exp/r0/classify.py.
-// Log-probability check: exp/r3/ (R3: first batches of r1_s2 and r1_s3). Timing: scripts/rl_timing.py over long3
-// and f6_s2 (means of the two runs: 47.8, 22.1, 50.4, 1.6 seconds).
+// and serving); versions.txt in each.
+// Format breakdown: ~/tt-work/techreport/exp/r0/classify.py.
+// Log-probability check: exp/r3/ (R3: first batches of r1_s2 and r1_s3). Timing: scripts/rl_timing.py over the
+// three runs (means: 47.5, 21.2, 49.7, 1.6 seconds). Step 90: 72.40, 74.60, 72.78 per cent (mean 73.26).
 #block(breakable: false)[
 == Reinforcement learning with Miles <reinforcement-learning>
 
@@ -122,14 +122,14 @@ Miles @miles is a reinforcement-learning framework that runs training and servin
 
 On a TT-QuietBox 2, Qwen3-0.6B trains on two Blackhole chips with FSDP2 and generates on two with tensor parallelism. Each of 90 group-relative policy optimization (GRPO) steps samples eight answers to each of 16 GSM8K training questions @gsm8k, scores their boxed answers, updates the model, and transfers the weights. Training uses AdamW at $2 times 10^(-6)$, BF16 computation and FP32 parameters and optimizer state; generation uses BF16 weights.
 
-Accuracy on all 1,319 GSM8K test questions, with greedy decoding and a 1,024-token limit, starts at 58 per cent. After 30 and 60 steps, three runs with different seeds reach 68.3 to 70.7 and 70.6 to 72.6 per cent; after 90 steps, the two finished so far reach 72.4 and 74.6 per cent (@rl-learning-curve). The gain is not answer format: the starting policy already boxes 99 per cent of its answers. For two rollout batches, an FP32 CPU computation of the answers' log-probabilities agrees with the trainer's batch mean to within 0.0003.
+Three runs with different seeds raise accuracy on all 1,319 GSM8K test questions, with greedy decoding and a 1,024-token limit, from 58 per cent at step 0 to 73.3 per cent on average after 90 steps (72.4 to 74.6 per cent; @rl-learning-curve). The gain is not answer format: the starting policy already boxes 99 per cent of its answers. For two rollout batches, an FP32 CPU computation of the answers' log-probabilities agrees with the trainer's batch mean to within 0.0003.
 
 #figure(
   placement: none,
   rl-learning-image,
-  caption: [Qwen3-0.6B on GSM8K on four Blackhole chips, three runs with different seeds (colour; green still running). Left: training reward per step, as trailing 15-step means. Right: test accuracy of each run and their mean (circles), with greedy decoding and a 1,024-token limit.],
+  caption: [Qwen3-0.6B on GSM8K on four Blackhole chips, three runs with different seeds (colour). Left: training reward per step, as trailing 15-step means. Right: test accuracy of each run and their mean (circles), with greedy decoding and a 1,024-token limit.],
 ) <rl-learning-curve>
 
-Over the final 15 steps of the finished runs, a step's generation averages 48 seconds, log-probabilities 22, training 50 and weight transfer 1.6. These runs demonstrate the complete RL loop; distributed training checkpoint and resume remain follow-up work.
+Over the runs' final 15 steps, a step's generation averages 48 seconds, log-probabilities 21, training 50 and weight transfer 1.6. These runs demonstrate the complete RL loop; distributed training checkpoint and resume remain follow-up work.
 
 ]
