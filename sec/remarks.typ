@@ -14,7 +14,7 @@ _Memory use and execution._ Extending buffer reuse could reduce memory requireme
 
 _Distributed execution and hardware coverage._ Execution across machines would support deployments larger than the chips in one host. Related work includes automatic link recovery after a server is interrupted and support for processors beyond Blackhole.
 
-_Training validation and scale._ The CPU comparisons cover a few steps on smaller models and selected layers, and the 300-step fine-tuning run shows improved GSM8K accuracy for one model (@training, @fine-tuning). Longer runs across more models and configurations would establish convergence and scaling. Larger models also need further memory reductions or additional parallelism, such as context parallelism.
+_Training validation and scale._ The CPU comparisons cover a few steps on smaller models and selected layers and a scaled-down fine-tuning run (@training, @fine-tuning). Reference runs of full-size training on other hardware, and longer runs across more models and configurations, would establish convergence and scaling. Larger models also need further memory reductions or additional parallelism, such as context parallelism.
 
 _Supporting a kernel language._ Currently Pallas is the most widely used language to write kernels for TPUs. We could try to adapt it to produce kernels for Tenstorrent accelerators, or port another kernel language like TileLang.
 

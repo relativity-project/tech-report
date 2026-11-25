@@ -8,6 +8,8 @@ the compiled result.
     sec/*.typ         sections and subsections; tables.typ and figures.typ
     refs.bib          references
     fonts/            TeX Gyre Termes, Termes Math and Cursor (GUST Font License)
+    scripts/          fig_sft.py and fig_rl.py: the training figures, regenerated from the runs' logs
+    results/          training-validation.md: the training sections' experiments, results and logs
 
 ## Building
 
@@ -34,7 +36,7 @@ The implementation descriptions include libtt through commit dc73ad4356b454df389
 with a pull-request number come from that pull request's description in the
 git history. The serving benchmark tables are from https://relativity.cc/models/
 as read on November 23, 2026 (libtt 0.2.2 for both SGLang-JAX and
-SGLang-TorchTPU). Hardware facts are from Tenstorrent's documentation.
+SGLang-TorchTPU). The training sections' fine-tuning and reinforcement-learning results (November 24–25, 2026; libtt 0.2.2, the release build main 2c68912a for the second pass, and 0.2.1 for the original RL run) are documented with their logs, scripts and checks in results/training-validation.md. Hardware facts are from Tenstorrent's documentation.
 
 
 ## License
