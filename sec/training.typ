@@ -111,8 +111,8 @@ We also checked the training against a CPU on MetaMathQA @metamath, TorchTitan's
 // Miles 7767e158 + two-file disk-delta portability patch. Runs: the original long3 (seed 1234 / 42; training: the
 // miles-attention and dense-flat branches, later #559 and #566; serving libtt 0.2.1 39235edd) and
 // ~/tt-work/techreport/exp/rl/runs/f6_s2, f6_s3 (seeds 1235 / 43, 1236 / 44; libtt 0.2.2 release 2c68912a, training
-// and serving); zero-learning-rate control r2_lr0 (libtt 0.2.2 2a4333a9); versions.txt in each. Interim
-// (2026-11-25 07:50 UTC): f6_s3 at step 34 of 90. Format breakdown: ~/tt-work/techreport/exp/r0/classify.py.
+// and serving); versions.txt in each. Interim
+// (2026-11-25 08:29 UTC): f6_s3 at step 54 of 90. Format breakdown: ~/tt-work/techreport/exp/r0/classify.py.
 // Log-probability check: exp/r3/ (R3: first batches of r1_s2 and r1_s3). Timing: scripts/rl_timing.py over long3
 // and f6_s2 (means of the two runs: 47.8, 22.1, 50.4, 1.6 seconds).
 #block(breakable: false)[
@@ -127,7 +127,7 @@ Accuracy on all 1,319 GSM8K test questions, with greedy decoding and a 1,024-tok
 #figure(
   placement: none,
   rl-learning-image,
-  caption: [Qwen3-0.6B on GSM8K on four Blackhole chips, three runs with different seeds (colour; green still running). Left: training reward per step, as trailing 15-step means, and for the zero-learning-rate control (dashed). Right: test accuracy of each run, their mean (circles) and the control (dashed), with greedy decoding and a 1,024-token limit.],
+  caption: [Qwen3-0.6B on GSM8K on four Blackhole chips, three runs with different seeds (colour; green still running). Left: training reward per step, as trailing 15-step means. Right: test accuracy of each run and their mean (circles), with greedy decoding and a 1,024-token limit.],
 ) <rl-learning-curve>
 
 Over the final 15 steps of the finished runs, a step's generation averages 48 seconds, log-probabilities 22, training 50 and weight transfer 1.6. These runs demonstrate the complete RL loop; distributed training checkpoint and resume remain follow-up work.
