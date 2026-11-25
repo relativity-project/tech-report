@@ -122,12 +122,12 @@ Miles @miles is a reinforcement-learning framework that runs training and servin
 
 On a TT-QuietBox 2, Qwen3-0.6B trains on two Blackhole chips with FSDP2 and generates on two with tensor parallelism. Each of 90 group-relative policy optimization (GRPO) steps samples eight answers to each of 16 GSM8K training questions @gsm8k, scores their boxed answers, updates the model, and transfers the weights. Training uses AdamW at $2 times 10^(-6)$, BF16 computation and FP32 parameters and optimizer state; generation uses BF16 weights.
 
-Accuracy on all 1,319 GSM8K test questions, with greedy decoding and a 1,024-token limit, starts at 58 per cent. After 30 steps, three runs with different seeds, one on libtt 0.2.1 and two on 0.2.2, reach 68.3 to 70.7 per cent; after 90 steps, the two finished so far reach 72.4 and 74.6 per cent (@rl-learning-curve). The gain is not answer format: the starting policy already boxes 99 per cent of its answers. With the learning rate set to zero, accuracy stays at 58.07 per cent after 30 steps of the same loop, and the served weights stay unchanged. For two rollout batches, an FP32 CPU computation of the answers' log-probabilities agrees with the trainer's batch mean to within 0.0003.
+Accuracy on all 1,319 GSM8K test questions, with greedy decoding and a 1,024-token limit, starts at 58 per cent. After 30 steps, three runs with different seeds reach 68.3 to 70.7 per cent; after 90 steps, the two finished so far reach 72.4 and 74.6 per cent (@rl-learning-curve). The gain is not answer format: the starting policy already boxes 99 per cent of its answers. With the learning rate set to zero, accuracy stays at 58.07 per cent after 30 steps of the same loop, and the served weights stay unchanged. For two rollout batches, an FP32 CPU computation of the answers' log-probabilities agrees with the trainer's batch mean to within 0.0003.
 
 #figure(
   placement: none,
   rl-learning-image,
-  caption: [Qwen3-0.6B on GSM8K on four Blackhole chips, three runs with different seeds (colour; blue on libtt 0.2.1, green still running). Left: training reward per step, as trailing 15-step means, and for the zero-learning-rate control (dashed). Right: test accuracy of each run, their mean (circles) and the control (dashed), with greedy decoding and a 1,024-token limit.],
+  caption: [Qwen3-0.6B on GSM8K on four Blackhole chips, three runs with different seeds (colour; green still running). Left: training reward per step, as trailing 15-step means, and for the zero-learning-rate control (dashed). Right: test accuracy of each run, their mean (circles) and the control (dashed), with greedy decoding and a 1,024-token limit.],
 ) <rl-learning-curve>
 
 Over the final 15 steps of the finished runs, a step's generation averages 48 seconds, log-probabilities 22, training 50 and weight transfer 1.6. These runs demonstrate the complete RL loop; distributed training checkpoint and resume remain follow-up work.
