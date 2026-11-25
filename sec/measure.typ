@@ -18,7 +18,6 @@ Speed does not necessarily grow in proportion to chips: Qwen3-8B on two chips is
 
 #tab-batched <batched-table>
 
-#block(breakable: false)[
 === Comparison with a TPU
 
 In @tpu-comparison we compare the exact same SGLang-TorchTPU code in two settings: Running with the libtt runtime on a Tenstorrent Blackhole P150 card and running with Google's libtpu runtime on a TPU v6e. 
@@ -48,17 +47,15 @@ Per unit of memory bandwidth, one Blackhole matches or exceeds one TPU at single
   ),
 ) <tpu-comparison>
 
-]
 
-#block[
 === Upstream Tenstorrent comparison
 
-We also compare with the upstream Tenstorrent software stack: a vLLM plugin that requires separate TTNN model definitions together with custom scheduling, execution, KV-cache handling and runtime compatibility patches. That stack is compared against two libtt-based stacks on the same chip: sglang served via TorchTPU, and sglang-jax.
+We also compare with the upstream Tenstorrent software stack: a vLLM plugin that requires separate TTNN model definitions together with custom scheduling, execution, KV-cache handling and runtime compatibility patches. That stack is compared against two libtt-based stacks on the same chip: SGLang-TorchTPU and SGLang-JAX.
 
-These comparisons are not apples to apples: the three stacks do not use the same numerics. The Tenstorrent vLLM uses BFP8 for most weights, which is a blockwise FP8 format, and its FP4 equivalent BFP4 for others. Sglang-jax used BFP8 throughout so it is most comparable to the upstream stack, and sglang-torchtpu uses FP8 and has additional overhead from the FP8 scales. The results are in @upstream-comparison.
+These comparisons are not apples to apples: the three stacks do not use the same numerics. The Tenstorrent vLLM stores most weights in the BFP8 block format (@machine) and the rest in BFP4. SGLang-JAX stores its weights in BFP8, so it is the most comparable to the upstream stack, while SGLang-TorchTPU uses FP8 and has additional overhead from the FP8 scales. The results are in @upstream-comparison.
 
 #figure(
-  caption: [Same prompts, 128-token outputs, and timing method as @tpu-comparison; one chip, no prefix caching or speculation. Decode and first-token columns are the short-prompt / long-prompt measurements. "16 requests" is total throughput at 16 concurrent requests (median of three measured batches).],
+  caption: [Same prompts, 128-token outputs, and timing method as @tpu-comparison; one chip, no prefix caching or speculation. Decode uses the short prompt and first-token latency the long one. A dash marks a result that is not available. "16 requests" is total throughput at 16 concurrent requests (median of three measured batches).],
   table(
     columns: 10,
     align: (left, right, right, right, right, right, right, right, right, right),
@@ -71,9 +68,9 @@ These comparisons are not apples to apples: the three stacks do not use the same
       table.hline(start: 1, end: 4, stroke: 0.3pt),
       table.hline(start: 4, end: 7, stroke: 0.3pt),
       table.hline(start: 7, end: 10, stroke: 0.3pt),
-      [sglang-jax], [sglang-torchtpu], [Upstream],
-      [sglang-jax], [sglang-torchtpu], [Upstream],
-      [sglang-jax], [sglang-torchtpu], [Upstream],
+      [SGLang-JAX], [SGLang-TorchTPU], [Upstream],
+      [SGLang-JAX], [SGLang-TorchTPU], [Upstream],
+      [SGLang-JAX], [SGLang-TorchTPU], [Upstream],
     ),
     table.hline(stroke: light),
     [Qwen3-8B], [46.1], [44.2], [38.7], [122.6], [253.5], [130.7], [514.1], [407.6], [522.8],
@@ -83,8 +80,7 @@ These comparisons are not apples to apples: the three stacks do not use the same
   ),
 ) <upstream-comparison>
 
-As we can see, the sglang-jax implementation on libtt is as performant or better than the upstream software, which is due to extra fusions we perform on the compiler level. The sglang-torchtpu implementation is better than upstream at decode but less good at prefill and larger batches, which is due the additional overhead from dynamic quantization.
-]
+SGLang-JAX on libtt is as fast as or faster than the upstream software, owing to the additional fusions libtt performs in the compiler. SGLang-TorchTPU is faster than upstream at decode but slower at prefill and with larger batches, because of the additional overhead from dynamic quantization.
 
 
 === Sampling and speculative decoding
