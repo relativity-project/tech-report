@@ -36,7 +36,7 @@ The implementation descriptions include libtt through commit dc73ad4356b454df389
 with a pull-request number come from that pull request's description in the
 git history. The serving benchmark tables are from https://relativity.cc/models/
 as read on November 23, 2026 (libtt 0.2.2 for both SGLang-JAX and
-SGLang-TorchTPU). The training sections' fine-tuning and reinforcement-learning results (November 24, 2026, libtt 0.2.2) are documented with their logs, scripts and checks in results/training-validation.md. Hardware facts are from Tenstorrent's documentation.
+SGLang-TorchTPU). The training sections' fine-tuning and reinforcement-learning results (November 24–25, 2026; libtt 0.2.2, the release build main 2c68912a for the second pass, and 0.2.1 for the original RL run) are documented with their logs, scripts and checks in results/training-validation.md. Hardware facts are from Tenstorrent's documentation.
 
 
 ## License

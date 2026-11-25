@@ -1,22 +1,23 @@
 # Training validation results (Sections 9.4 and 9.5)
 
-All new runs use libtt 0.2.2 (2a4333a9) unless noted; logs are on the QuietBox under `~/tt-work/techreport/exp`
+First-pass runs use libtt 0.2.2 at 2a4333a9, before the fused-loss fix, unless noted; second-pass runs (F1–F6, at the
+end) use the 0.2.2 release, main 2c68912a, which contains it. Logs are on the QuietBox under `~/tt-work/techreport/exp`
 (paths relative to it below) and `~/tt-work/techreport/fc`.
 
 | Item | Ran | Headline | Logs |
 | --- | --- | --- | --- |
 | S0 facts of the published SFT run | yes | BF16 parameters and AdamW state; 38,915 MetaMathQA samples; 451 of the Base model's 471 GSM8K errors hit the 512-token cap | `s0/` |
-| S1 do BF16 updates survive? | yes | No: at the peak LR ~90% of feed-forward and attention weights keep their value per step; 0.2.2 reproduces the published losses exactly | `logs/s1c_9b.log`, `s1/` |
+| S1 do BF16 updates survive? | yes | No: at the peak LR ~90% of feed-forward and attention weights keep their value per step; 2a4333a9 reproduces the published losses exactly (both before the fused-loss fix, which changes the logged loss) | `logs/s1c_9b.log`, `s1/` |
 | S2 precision A/B (Qwen3.5-2B) | yes, plus an FP32 arm at LR 5×10⁻⁶ | BF16 storage acts as a smaller LR: FP32 at the same LR ends worse (GSM8K 72.9 vs 75.0%), at ¼ the LR slightly better (75.4%) | `logs/s2_*.log` |
-| S3 reference run | CPU, scaled down (user's choice: no TPU) | Pass: chips vs CPU 0.0063 per step < Y/2 = 0.0092; the offset was a fused-loss bias, diagnosed and fixed | `logs/s3_*.log` |
-| S4 cross-evaluation | teacher-forced instead of generation (user's choice; ~12 h on the CPU) | CPU picks the chips' token at 98.6% (Base) / 99.7% (fine-tuned) of positions; all differences near-ties | `eval/out/tf_*` |
+| S3 reference run | CPU, scaled down (user's choice: no TPU) | Pass: chips vs CPU 0.0063 per step < Y/2 = 0.0092; the offset was a fused-loss bias, diagnosed and fixed (F3: 0.0004 on the release) | `logs/s3_*.log` |
+| S4 cross-evaluation | teacher-forced instead of generation (user's choice; ~12 h on the CPU) | CPU picks the chips' token at 98.6% (Base) / 99.7% (fine-tuned) of positions; at the disagreements (F4) the CPU's margin is a BF16 tie for 60% (Base) / 93% (fine-tuned), up to 1.6 (Base) | `eval/out/tf_*`, `eval/out_f4/` |
 | S5 format controls | yes | Most of the 23-point GSM8K gain is length and format: at 1,024 tokens the Base solves 82.9% vs 87.4% | `eval/out/results.jsonl` |
 | S6 evals during training | replaced (user: function calling) | ToolACE held-out loss every 25 steps instead | `logs/fc_9b_toolace.log` |
 | S7 unrelated test set | replaced | BFCL for the function-calling run | `../fc/out/` |
 | S8 seeds (SFT) | no (time) | — | — |
-| S9 longer run, step breakdown | no; a 4×-accumulation ToolACE run instead (user) | see "Function calling" | `logs/fc_9b_toolace_ga4.log` |
-| Function calling (ToolACE → BFCL) | yes (user's addition) | BFCL 62.5% → 85.6% (same prompt), 91.0% (non-thinking prompt); Base at most 73.2% with format forgiven | `logs/fc_9b_toolace.log`, `../fc/out/` |
-| Fused-loss fix (libtt) | yes | Logged loss was +0.015 per ignored token (BF16 log V) and +0.0009 from a BF16-precision exp; fixed on libtt branch `cross-entropy-accurate-exp` | `logs/s3_diag*`, `logs/test_*` |
+| S9 longer run, step breakdown | no; a 4×-accumulation ToolACE run was tried instead (user) and failed | Out of device memory after its first step: a 1.0 GB buffer with 0.31–0.44 GB free per chip; not retried | `logs/fc_9b_toolace_ga4.log` |
+| Function calling (ToolACE → BFCL) | yes (user's addition) | BFCL at 1,024 tokens (F2): 64.8% → 88.5% (same prompt), 91.0% (non-thinking prompt); Base at most 75.8% with format forgiven (at 512: 62.5 → 85.6, 91.0; 73.2) | `logs/fc_9b_toolace.log`, `../fc/out/`, `../fc/out_f2/` |
+| Fused-loss fix (libtt) | yes | Logged loss was +0.015 per ignored token (BF16 log V), +0.0009 from a BF16-precision exp and −0.0004 from TF32 operands; fixed in the libtt 0.2.2 release (#568, main 2c68912a) | `logs/s3_diag*`, `logs/test_*` |
 | R0 facts of the published RL run | yes | Gain is not format: step 0 boxes 99%; wrong values 544 → 262 | `r0/` |
 | R1 seeds | 2 new seeds × 30 steps (user's choice) | Step 30: 68.6% and 67.1% (seeds 1235, 1236; libtt 0.2.2) vs the published 70.7% (seed 1234, 0.2.1); step 10: 66.0% and 58.8% | `rl/runs/r1_*` |
 | R2 zero-learning-rate control | yes | Pass: 31 empty transfers, byte-identical weights, 58.07% at steps 0 and 30 | `rl/runs/r2_lr0` |
@@ -25,19 +26,27 @@ All new runs use libtt 0.2.2 (2a4333a9) unless noted; logs are on the QuietBox u
 | R5 answer format | yes (rescoring) | Lenient scoring changes the endpoints by 0 / +5 answers | `r0/lenient.out` |
 | R6 precision A/B (RL) | no (time) | — | — |
 | R7 resume, harder target | no | — | — |
+| **Second pass** (2026-11-25, libtt 0.2.2 release 2c68912a) | | | |
+| F1 BFCL cap hits | yes (no new compute) | At 512 tokens the cap ends 82 Base replies (76 failures) with the thinking prompt, 4 with the non-thinking one; fine-tuned 41 and 1 | `../fc/out/` |
+| F2 BFCL at 1,024 tokens | yes (server context 4,096) | 64.8% → 88.5% (same prompt), 91.0% (non-thinking); Base at most 75.8% read leniently; gain beyond format at each model's best shrinks 17.9 → 15.2 points, so the report quotes these | `../fc/out_f2/` |
+| F3 loss fix on the release | yes | Chips vs CPU 0.0004 per step (BF16 and FP32; std 0.0005, max 0.0018; step 1 +0.0010); ToolACE's first 5 steps read 0.0002–0.0003 above the reported run | `logs/f3_*` |
+| F4 margins at every serving disagreement | yes | Base: 60% of 1,779 disagreements are BF16 ties, 40% exceed one step (max 1.6), mostly in capped completions; fine-tuned: 93% of 124 | `eval/out_f4/` |
+| F5 trainer per-token log-probabilities | running (first attempt refused by Miles' argument check) | — | `rl/runs/f5*` |
+| F6 RL seeds at 90 steps | running: seeds 1235 / 43 and 1236 / 44; with the published run, three (user: no 90-step control, evaluations at 30, 60, 90) | — | `rl/runs/f6_*` |
+| F7 second seed per precision arm | no (user: skipped for time) | The report says the three arms end indistinguishable | — |
 
 Gaps G1–G9 from the plan:
 
 | Gap | Status |
 | --- | --- |
-| G1 reference run on other hardware | Partly closed: no TPU; a scaled-down SFT run (2B, 8,192 tokens a step, 30 steps) agrees with a CPU reference in both precisions (S3); for RL, only the trainer's log-probabilities are checked against the CPU (R3), not the loop's updates. **Open at full scale.** |
+| G1 reference run on other hardware | Partly closed: no TPU; a scaled-down SFT run (2B, 8,192 tokens a step, 30 steps) agrees with a CPU reference in both precisions, to 0.0004 per step on the release build (S3, F3); for RL, only the trainer's log-probabilities are checked against the CPU (R3), not the loop's updates. **Open at full scale.** |
 | G2 training continues after warm-up | Closed: S1/S2 explain the flat MetaMathQA curve (BF16 updates round away; FP32 at a matched rate is no faster); the ToolACE held-out loss falls through step 225 (0.302 at 25, 0.252 at 225). |
 | G3 precision of parameters and optimizer state | Closed: BF16 for SFT (stated in 9.4), FP32 for RL, and why it matters (S1, S2). |
 | G4 control for answer format (SFT) | Closed: S0, S5; for BFCL, the lenient reading. |
 | G5 evaluations during training, unrelated test set | Closed differently (user's choice): held-out loss every 25 steps, and BFCL for the ToolACE run; no GSM8K curve along the MetaMathQA run (S6 dropped). |
 | G6 more than one RL run | Partly closed: three runs to step 30 (R1); steps 30–90 remain one run. |
 | G7 controls for the loop and for format (RL) | Closed: R2 (zero learning rate), R0 and R5 (format). |
-| G8 evaluation on a reference backend | Partly closed: teacher-forced CPU comparison of serving (S4) and of the RL trainer (R3); no reference-trained checkpoint, no independent CPU accuracy. |
+| G8 evaluation on a reference backend | Partly closed: teacher-forced CPU comparison of serving (S4; margins at every disagreement, F4) and of the RL trainer (R3); no reference-trained checkpoint, no independent CPU accuracy. |
 | G9 versions and patches in the text | Closed: 9.5 names the Miles patch and versions; every run records its versions. |
 
 
@@ -172,7 +181,8 @@ standard deviation 0.0009 over the 30 steps, in both precisions), present at ste
 training trajectories otherwise agree: the effect of FP32 storage on the mean loss over steps 11–30 is +0.0302 on the
 chips and +0.0303 on the CPU.
 
-**The offset is a bias in the logged value of the fused loss, now fixed** (libtt branch `cross-entropy-accurate-exp`).
+**The offset is a bias in the logged value of the fused loss, now fixed** (libtt branch `cross-entropy-accurate-exp`,
+merged as #568 into the 0.2.2 release; F3 repeats this comparison on it).
 One-step checks on the chips, step-1 loss (CPU reference 0.41595):
 
 | Chips' loss path | Step-1 loss | − CPU |
@@ -254,7 +264,8 @@ FP32 98.54%, CPU in BF16 vs CPU in FP32 99.50%. Where a completion first diverge
 nearly tied at BF16 resolution (logits of this size are 0.125 apart in BF16; only first divergences were recorded:
 282 of about 1,780 differing positions for the Base model, 100 of about 124 for the fine-tuned one), so serving
 agrees with the reference within reduced precision; it is measurably coarser than BF16 arithmetic on the CPU (1.4%
-vs 0.5% of positions differ). Free-running greedy decoding therefore diverges
+vs 0.5% of positions differ; F4 records the margin at every disagreement: for the Base model 40% exceed one BF16
+step). Free-running greedy decoding therefore diverges
 from the reference somewhere in most long completions, as any two BF16 backends do. The libtt 0.2.2 accuracies of the
 same checkpoints on all 1,319 questions are 64.44% (Base; published 64.29% on 0.2.1) and 87.34% (fine-tuned; published
 87.34%), so serving the published checkpoints on 0.2.2 reproduces the published numbers within two answers.
@@ -274,7 +285,8 @@ Added at the user's request (2026-11-24), replacing the planned MetaMathQA rerun
 - **Recipe.** The published 9B recipe otherwise unchanged (`ttx.qwen35_9b_sft_toolace`): 8,192 tokens per chip (whole samples
   of up to 2,048 tokens), AdamW at 2×10⁻⁵, 25 warm-up steps, cosine decay, 300 steps (about 1.25 passes over the data:
   a replay of the pipeline reads 13,855 samples, of 11,046 in the training split), BF16 parameters and
-  AdamW state; libtt 0.2.2 with both fused-loss fixes (S3), so the logged losses are unbiased. Log
+  AdamW state; libtt 0.2.2 (2a4333a9) with the fused-loss fix as of 56d7f486 (a kernel overlay and a patched wrapper;
+  S3), so the logged losses carry only the TF32 truncation, 0.0002–0.0003 low (F3). Log
   `exp/logs/fc_9b_toolace.log` (versions in `.versions`).
 - **Run.** 29.47 s per step after the first (the MetaMathQA run's 29.6 s: the same token count), 2.5 hours. Held-out
   loss 0.4475 after step 1, 0.3016 at step 25, 0.2677 at 100, 0.2539 at 200, 0.2520 at 300 (flat from step 225 as the
@@ -294,7 +306,7 @@ Added at the user's request (2026-11-24), replacing the planned MetaMathQA rerun
 | parallel (200) | 51.5% | 70.5% | 42.5% | 47.0% | 85.0% | 91.5% |
 | parallel multiple (200) | 45.0% | 64.5% | 41.0% | 56.0% | 77.0% | 83.0% |
 | irrelevance (240) | 94.6% | 93.3% | 85.4% | 84.6% | 95.0% | 92.1% |
-| **mean of the five** | **62.5%** | **73.2%** | **56.3%** | **62.3%** | **85.6%** | **91.0%** |
+| **unweighted mean of the five** | **62.5%** | **73.2%** | **56.3%** | **62.3%** | **85.6%** | **91.0%** |
 
 The two prompts differ only in the generation prompt's last tokens: the template's default opens a thinking block
 (`<think>\n`); its non-thinking mode (`enable_thinking=False`, `fc/bfcl_prompts_mode.py`) ends in an empty block
@@ -381,3 +393,99 @@ After 30 steps the three runs span 67.1–70.7% (mean 68.8%), all well above the
 early progress varies more between seeds (58.8–66.0% after 10 steps). The 95% binomial half-width at these accuracies
 is about 2.5 points, so the published run's 70.7% is within the spread of a single run. The later points of the
 published run (72.4% at 60 and 90) remain single-run results. Each run took 1.5 to 1.6 hours.
+
+# Second pass (2026-11-25): follow-ups F1–F7
+
+New runs use the libtt 0.2.2 release build, main 2c68912a (#568, the fused-loss fix; the wheel was built from the
+identical tree, d4efb66c, and installed in every venv: `libtt.so` MD5 `501891b1…`), with a fresh kernel cache. First-pass
+runs labelled 0.2.2 used 2a4333a9, before the fix. Plan: the handoff "Libtt report: handoff for the second pass on PR #2".
+
+## F1: Base cap hits on BFCL (no new compute)
+
+From the saved first-pass BFCL outputs (`fc/out/bfcl_*.completions.json`, finish reason "length"; 512-token cap):
+
+| Model, prompt | Replies at the cap | of which failed | Failures in all | Categories of the capped replies |
+| --- | --- | --- | --- | --- |
+| Base, thinking | 82 | 76 | 461 | parallel 33, parallel multiple 29, simple 9, irrelevance 6, multiple 5 |
+| Base, non-thinking | 4 | 4 | 525 | parallel multiple 3, parallel 1 |
+| Fine-tuned, thinking | 41 | 41 | 177 | parallel multiple 23, parallel 15, multiple 2, simple 1 |
+| Fine-tuned, non-thinking | 1 | 1 | 106 | parallel multiple 1 |
+
+With the thinking prompt the cap ends 76 of the Base model's 461 failures and 41 of the fine-tuned model's 177; with the
+non-thinking prompt it hardly matters for either. F2 measures what a longer limit changes.
+
+## F3: the loss fix on the release build
+
+S3's chip runs repeated on the release build, unchanged otherwise (`ttx.qwen35_2b_sft_{bf16,fp32}_small`, 30 steps;
+logs `exp/logs/f3_tt_{bf16,fp32}.log`), against the first pass's CPU references (`exp/logs/s3_cpu_{bf16,fp32}.log`,
+PyTorch's cross-entropy and attention, unaffected by libtt). Per-step loss difference, chips − CPU, steps 1–30:
+
+| Comparison | Mean abs. | Mean | Std. dev. | Max abs. | Step 1 |
+| --- | --- | --- | --- | --- | --- |
+| BF16, release 2c68912a | 0.00035 | +0.00009 | 0.00050 | 0.00177 (step 6) | +0.00102 |
+| FP32, release 2c68912a | 0.00043 | +0.00013 | 0.00054 | 0.00155 (step 28) | +0.00102 |
+| BF16, first pass (2a4333a9) | 0.00633 | +0.00633 | 0.00093 | 0.0079 | +0.0075 |
+| FP32, first pass (2a4333a9) | 0.00635 | +0.00635 | 0.00087 | 0.0078 | +0.0075 |
+
+The offset is gone: the mean absolute difference, 0.0004 in both precisions, is 21 to 26 times below S3's yardstick
+Y/2 = 0.0092, and the chips' losses scatter around the CPU's by 0.0005 (standard deviation). The step-1 difference, +0.0010 (0.25 per cent of 0.416), is the chips' model forward: the
+same as with PyTorch's cross-entropy on the chips (S3's diagnosis table), so a batch whose prompts are masked agrees
+to two significant digits at step 1 rather than three. FP32 storage's effect on the mean loss over steps 11–30 is
++0.0302 on the chips and +0.0303 on the CPU, as in the first pass.
+
+ToolACE, first 5 steps of `ttx.qwen35_9b_sft_toolace` on the release build (`exp/logs/f3_toolace5.log`) against the
+reported run (`fc_9b_toolace.log`, the fix as a kernel overlay and a patched wrapper, 56d7f486's version):
+
+| Step | 1 | 2 | 3 | 4 | 5 | Held-out after step 1 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Release | 0.47542 | 0.46603 | 0.36350 | 0.64132 | 0.37387 | 0.4477 |
+| Reported run | 0.47523 | 0.46571 | 0.36318 | 0.64114 | 0.37364 | 0.4475 |
+| Difference | +0.00019 | +0.00032 | +0.00032 | +0.00018 | +0.00023 | +0.0002 |
+
+The release reads 0.0002–0.0003 higher at every step: the TF32 truncation (cause 3 in S3) that the overlay still had
+and the release removes. The reported run's losses are therefore low by that much, below the precision the report
+quotes them to.
+
+## F4: margins at every serving disagreement
+
+S4 again with the margin recorded at every position where the chips' token differs from the CPU reference's top choice
+(`exp/eval/tf_agree.py`, now also recording these; output `exp/eval/out_f4/`, logs `exp/logs/f4-9b-*.log`). Same
+completions (libtt 0.2.2 2a4333a9 serving; the loss fix does not touch serving), same CPU reference (transformers, BF16),
+same 300 questions; the agreement rates reproduce S4's exactly. Margin = the CPU's log-probability of its top token
+minus that of the chips' token; one BF16 step of logits between 16 and 32 is 0.125, and a margin of 0 is an exact tie.
+
+| Model | Differing positions | Median | 90th pct. | Max | Share above 0.125 | above 0.5 | above 1 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 9B Base | 1,779 of 125,033 (1.42%) | 0.125 | 0.375 | 1.625 | 40.1% (714) | 110 | 13 |
+| 9B fine-tuned (`sft300b`) | 124 of 41,087 (0.30%) | 0.125 | 0.125 | 0.625 | 7.3% (9) | 1 | 0 |
+
+For the fine-tuned model nearly every disagreement is a tie at BF16 resolution. For the Base model 60% are, but 40% of
+its disagreements exceed one BF16 step, up to 1.6; 552 of those 714 fall in the 130 completions that run to the
+512-token cap, long and often repetitive text. At the first divergence of each completion (S4's measure) 72 of 282
+exceed one step. So S4's "near-ties" holds for where completions first diverge and for the fine-tuned model, not for
+every disagreement of the Base model.
+
+## F2: BFCL at 1,024 tokens (the report's numbers now)
+
+Both models under both prompts again, with up to 1,024 new tokens instead of 512, otherwise as before (`fc/out_f2/`,
+`results.jsonl`, completions, server logs; lenient `fc/out_f2/lenient.out`), served on the release build. The server's
+context length had to rise from 2,048 to 4,096 tokens: the longest prompt is 1,413 tokens, and at 2,048 the first
+attempt's server rejected the 46 longest requests (logs kept, `*failed-context2048*`). The larger context leaves
+serving as it was: of the replies that ended before 512 tokens in the first pass, 98–99.6% are identical character
+for character (Base 1,132 of 1,158, 1,226 of 1,236; fine-tuned 1,180 of 1,196, 1,234 of 1,239), and at most 4 per run
+change their outcome.
+
+| Category (tests) | Base, thinking | lenient | Base, non-thinking | lenient | Fine-tuned, thinking | Fine-tuned, non-thinking |
+| --- | --- | --- | --- | --- | --- | --- |
+| simple (400) | 59.0% | 67.75% | 59.25% | 61.25% | 84.75% | 93.5% |
+| multiple (200) | 63.5% | 72.0% | 53.5% | 62.5% | 86.0% | 95.0% |
+| parallel (200) | 58.0% | 76.0% | 43.0% | 47.5% | 90.0% | 91.5% |
+| parallel multiple (200) | 49.5% | 70.5% | 41.0% | 55.5% | 86.5% | 83.0% |
+| irrelevance (240) | 94.2% | 92.9% | 85.4% | 84.6% | 95.0% | 92.1% |
+| **unweighted mean of the five** | **64.8%** (512: 62.5) | **75.8%** (73.2) | **56.4%** (56.3) | **62.3%** (62.3) | **88.5%** (85.6) | **91.0%** (91.0) |
+
+Replies at the cap: Base 42 (thinking) and 3; fine-tuned 6 and 0. The longer limit mostly finishes replies the
+512-token cap cut off: 25 of the Base model's 82 and 29 of the fine-tuned model's 44 now pass. With the same
+(thinking) prompt the gain is 23.6 points (512: 23.1); beyond answer format, fine-tuned against Base read leniently, it
+is 12.6 points with the same prompt (12.4) and 15.2 points with each model at its best (17.9). Because that last margin
+shrinks, the report now quotes the 1,024-token numbers (as the handoff asks).

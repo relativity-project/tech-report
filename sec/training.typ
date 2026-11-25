@@ -1,13 +1,14 @@
 // Training with TorchTitan.
 // Original throughput and short checks: libtt main at 5e041d48 and the Llama 3
 // work in pull request #554.
-// Fine-tuning (checked 2026-11-24 UTC; every number in results/training-validation.md with its script):
-// ToolACE run ~/tt-work/techreport/exp/logs/fc_9b_toolace.log (libtt 0.2.2 2a4333a9 with the fused-loss fixes of
-// branch cross-entropy-accurate-exp as of 56d7f486, TorchTitan 94063ded, recipe ttx.qwen35_9b_sft_toolace); BFCL with bfcl-eval
-// 2026.3.23 through SGLang-TorchTPU on libtt 0.2.2, ~/tt-work/techreport/fc/out/results.jsonl and fc/lenient.py.
-// MetaMathQA checks: S1 exp/logs/s1c_9b.log; S2 exp/logs/s2_*.log and exp/eval/out/results.jsonl; S3
-// exp/logs/s3_*.log; S4 exp/eval/out/tf_results.jsonl; S5 exp/eval/out/results.jsonl (9b-* tags); published run
-// ~/tt-work/train35/logs/sft300b.log (libtt p2p-peer-addresses 2fe91a3f).
+// Fine-tuning (checked 2026-11-25 UTC; every number in results/training-validation.md with its script):
+// ToolACE run ~/tt-work/techreport/exp/logs/fc_9b_toolace.log (libtt 0.2.2 2a4333a9 with the first version of the
+// fused-loss fix, 56d7f486, later #568; the 0.2.2 release 2c68912a logs the same losses within 0.0003, F3; TorchTitan
+// 94063ded, recipe ttx.qwen35_9b_sft_toolace); BFCL with bfcl-eval 2026.3.23 through SGLang-TorchTPU on the 0.2.2
+// release 2c68912a, 1,024 tokens: ~/tt-work/techreport/fc/out_f2/results.jsonl and lenient.out (F2).
+// MetaMathQA checks: S1 exp/logs/s1c_9b.log; S2 exp/logs/s2_*.log and exp/eval/out/results.jsonl; CPU reference
+// exp/logs/f3_tt_*.log against exp/logs/s3_cpu_*.log (F3, release 2c68912a); serving exp/eval/out_f4/tf_results.jsonl
+// (F4); S5 exp/eval/out/results.jsonl (9b-* tags); published run ~/tt-work/train35/logs/sft300b.log.
 
 #import "fig-sft-loss.typ": fig-sft-loss
 
@@ -64,47 +65,47 @@ _Freeing collective memory._ Collectives need temporary storage, and libtt reduc
   ),
 ) <training-runs>
 
-The checks against a CPU are separate from these full-size throughput measurements. Tested small models and selected layers are trained for a few steps from the same saved starting point on both the CPU and the chips. They include TorchTitan's debug models and the first two layers of Llama 3 8B with its full vocabulary and 8,192-token sequences. In these checks, the first losses agree to three digits or more, and subsequent losses differ by at most about one per cent. Different kernels, rounding, and summation order can produce small differences that accumulate across updates.
+The checks against a CPU are separate from these full-size throughput measurements. Tested small models and selected layers are trained for a few steps from the same saved starting point on both the CPU and the chips. They include TorchTitan's debug models and the first two layers of Llama 3 8B with its full vocabulary and 8,192-token sequences. In these checks, the first losses agree to three digits or more (two, 0.25 per cent, for a fine-tuning batch whose prompts are masked), and subsequent losses differ by at most about one per cent. Different kernels, rounding, and summation order can produce small differences that accumulate across updates.
 
 The DeepSeek-V3, Qwen3 MoE, and Qwen3.5 MoE debug models run unchanged in PyTorch eager mode with 32-bit floats. 
 
 == Supervised Fine-tuning <fine-tuning>
 
-The fine-tuning experiment teaches a published base model to call functions, and follows it through training, export, and evaluation on four chips. Qwen3.5-9B-Base was trained on ToolACE @toolace: 11,300 examples in which a system prompt lists the available functions in JSON and the reply to a user's request is the calls to make, written as a Python list such as `[get_weather(city="Paris")]`, or a statement that no function applies. The recipe is adapted from TorchTitan's Llama 3 fine-tuning example. Samples use Qwen's chat template, and only the reply's tokens contribute to the loss. Whole samples of up to 2,048 tokens are packed into 8,192 tokens per chip, attending only within themselves: 32,768 tokens per step, about 1.25 passes over the data in 300 steps. AdamW's learning rate rises to $2 times 10^(-5)$ over 25 steps and then follows a cosine decay. Parameters, gradients and AdamW's state are BF16, as in @training-runs. A fixed 2 per cent of ToolACE is held out, and an adapter imports and exports the weights in the standard Hugging Face checkpoint format.
+Qwen3.5-9B-Base is fine-tuned to call functions on ToolACE @toolace: 11,300 examples whose system prompt lists functions in JSON and whose reply is the calls, as a Python list such as `[get_weather(city="Paris")]`, or a statement that none applies. The recipe adapts TorchTitan's Llama 3 fine-tuning example: a loss on the reply's tokens, whole samples of up to 2,048 tokens packed into 8,192 tokens per chip, 300 steps (1.25 passes over the data), AdamW at up to $2 times 10^(-5)$ with 25 warm-up steps and cosine decay, and BF16 parameters, gradients and optimizer state. A fixed 2 per cent is held out; weights load and save as Hugging Face checkpoints.
 
-After the first step, a step averaged 29.5 seconds, or about 278 tokens per second per chip, and the 300 steps took about 2.5 hours. @sft-loss shows the run: the held-out loss falls from 0.448 after the first step to 0.302 by step 25 and 0.252 at the end.
+A step took 29.5 seconds (278 tokens per second per chip); the held-out loss falls from 0.448 after the first step to 0.302 by step 25 and 0.252 after 300 (@sft-loss).
 
 #figure(
   placement: auto,
   fig-sft-loss,
-  caption: [Fine-tuning Qwen3.5-9B-Base on ToolACE, 300 steps on four chips: each step's training loss (grey), its 25-step trailing mean (black), and the loss on the held-out 2 per cent (circles). Losses are means over the replies' tokens.],
+  caption: [Fine-tuning Qwen3.5-9B-Base on ToolACE: training loss per step (grey), its 25-step trailing mean (black) and held-out loss (circles).],
 ) <sft-loss>
 
-The evaluation uses the Berkeley Function Calling Leaderboard @bfcl: its five single-turn categories, 1,240 tests, with BFCL's own prompt (which states the required output format), parser and checker of the calls' syntax trees. Both models run through SGLang-TorchTPU on four chips with greedy decoding, capped at 512 tokens.
+Both models answer BFCL's five single-turn categories @bfcl (1,240 tests), scored by its own prompt, parser and syntax-tree checker and served greedily by SGLang-TorchTPU with up to 1,024 tokens.
 
 #figure(
   placement: auto,
-  caption: [Function calling on BFCL's five single-turn categories (per cent of tests passed): Qwen3.5-9B-Base before and after fine-tuning on ToolACE, with the chat template's thinking prompt and with its non-thinking prompt, which ends in the empty thinking block the training samples hold. Lenient reads any list of calls in the reply, after removing copied template placeholders: a control for answer format.],
+  caption: [Function calling on BFCL (per cent of tests passed) before and after fine-tuning, with the chat template's thinking and non-thinking prompts. Lenient reads any list of calls after removing copied template placeholders, a control for answer format. Mean: unweighted, over the five categories.],
   table(
     columns: 5,
     align: (left, right, right, right, right),
     table.hline(stroke: heavy),
     table.header([Category (tests)], [Base], [Base, lenient], [Fine-tuned], [Fine-tuned, non-thinking]),
     table.hline(stroke: light),
-    [Simple (400)], [58.3], [67.0], [84.8], [93.5],
-    [Multiple (200)], [63.0], [70.5], [86.0], [95.0],
-    [Parallel (200)], [51.5], [70.5], [85.0], [91.5],
-    [Parallel multiple (200)], [45.0], [64.5], [77.0], [83.0],
-    [Irrelevance (240)], [94.6], [93.3], [95.0], [92.1],
+    [Simple (400)], [59.0], [67.8], [84.8], [93.5],
+    [Multiple (200)], [63.5], [72.0], [86.0], [95.0],
+    [Parallel (200)], [58.0], [76.0], [90.0], [91.5],
+    [Parallel multiple (200)], [49.5], [70.5], [86.5], [83.0],
+    [Irrelevance (240)], [94.2], [92.9], [95.0], [92.1],
     table.hline(stroke: light),
-    [Mean], [62.5], [73.2], [85.6], [91.0],
+    [Mean], [64.8], [75.8], [88.5], [91.0],
     table.hline(stroke: heavy),
   ),
 ) <bfcl-results>
 
-Fine-tuning raises the mean from 62.5 to 85.6 per cent with the same prompt, and to 91.0 per cent with the non-thinking prompt, which matches the training format (@bfcl-results); the Base model scores lower with that prompt (56.3 per cent). The Base model often writes a reply the parser cannot read, for example by copying the format's placeholders into its calls; reading its replies leniently raises it to 73.2 per cent, so the fine-tuned model's gain is at least 12 points beyond answer format with the same prompt and 18 points at its best. With the non-thinking prompt, most of its remaining failures are calls with a wrong function or value (73 of 106); with the thinking prompt, 95 replies hold no call, 40 of them cut off at the 512-token cap and most of the rest pointing out a missing required parameter, as the prompt asks, where BFCL expects a call.
+Fine-tuning raises the mean from 64.8 to 88.5 per cent with the same prompt, and to 91.0 per cent with the non-thinking prompt that matches the training format (@bfcl-results); read leniently, the Base model reaches at most 75.8 per cent.
 
-The training itself was also checked on MetaMathQA @metamath, TorchTitan's own fine-tuning example, with the same recipe. On libtt 0.2.2 it reproduces the earlier run's first 30 losses exactly. With BF16 parameters and AdamW state, most updates are smaller than half a BF16 unit in the last place and are lost: at the peak learning rate about 90 per cent of the feed-forward and attention weights keep their value in a step. On Qwen3.5-2B-Base this acts as a smaller learning rate: FP32 storage at the same rate ends slightly worse on GSM8K (72.9 against 75.0 per cent), and at a quarter of the rate slightly better (75.4 per cent). A scaled-down run agrees with a CPU reference, within half the difference between two data orders, and a CPU reference picks the chips' next token at 98.6 to 99.7 per cent of positions; where the two first differ in a completion, the reference's top two tokens are nearly tied. The GSM8K gain first reported for this run, 64.3 to 87.3 per cent zero-shot within 512 tokens, is mostly the length cap and answer format: the Base model reasons at length and rarely writes “The answer is”, and given 1,024 tokens it solves 82.9 per cent by the same scorer, 4.5 points below the fine-tuned model. Full results are in the repository's results note.
+MetaMathQA @metamath, TorchTitan's own fine-tuning example, checks the training. BF16 storage rounds most AdamW updates away, which acts as a smaller learning rate: on Qwen3.5-2B-Base, BF16 storage and FP32 storage at the same or a quarter of the rate end indistinguishably on GSM8K (72.9 to 75.4 per cent, one run each). A scaled-down run follows a CPU reference to within 0.0004 of the loss per step on average. The GSM8K gain first reported, 64.3 to 87.3 per cent within 512 tokens, was mostly that cap and answer format: with 1,024 tokens the Base model solves 82.9 per cent. Serving picks a CPU reference's next token at 98.6 to 99.7 per cent of positions. The Base model's differences, 1.4 per cent of positions against 0.5 per cent between BF16 and FP32 on the CPU, are 60 per cent BF16 ties and otherwise up to 1.6 apart in log-probability, mostly in completions cut off by the cap. Details are in the results note.
 #import "fig-rl-learning.typ": rl-learning-image
 
 // Miles 7767e158 + two-file disk-delta portability patch. Original run: long3 (training: the miles-attention and
