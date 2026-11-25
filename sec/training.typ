@@ -108,25 +108,28 @@ Fine-tuning raises the mean from 64.8 to 88.5 per cent with the same prompt, and
 We also checked the training against a CPU on MetaMathQA @metamath, TorchTitan's own fine-tuning example. A scaled-down run with the same starting point and data gives the same losses on the chips as on the CPU, to within 0.2 per cent per step on average, in both BF16 and FP32. In serving, the chips choose the same next token as a CPU reference at about 99 per cent of positions, with most differences at the limit of BF16 precision.
 #import "fig-rl-learning.typ": rl-learning-image
 
-// Miles 7767e158 + two-file disk-delta portability patch. Original run: long3 (training: the miles-attention and
-// dense-flat branches, later #559 and #566; serving libtt 0.2.1 39235edd). Endpoint checks: rl-report-20261117.
-// Format breakdown: ~/tt-work/techreport/exp/r0/classify.py. Zero-learning-rate control and the seeds: libtt 0.2.2,
-// ~/tt-work/techreport/exp/rl/runs/{r2_lr0,r1_s2,r1_s3} (versions.txt in each).
+// Miles 7767e158 + two-file disk-delta portability patch. Runs: the original long3 (seed 1234 / 42; training: the
+// miles-attention and dense-flat branches, later #559 and #566; serving libtt 0.2.1 39235edd) and
+// ~/tt-work/techreport/exp/rl/runs/f6_s2, f6_s3 (seeds 1235 / 43, 1236 / 44; libtt 0.2.2 release 2c68912a, training
+// and serving); zero-learning-rate control r2_lr0 (libtt 0.2.2 2a4333a9); versions.txt in each. Interim
+// (2026-11-25 07:50 UTC): f6_s3 at step 34 of 90. Format breakdown: ~/tt-work/techreport/exp/r0/classify.py.
+// Log-probability check: exp/r3/ (R3: first batches of r1_s2 and r1_s3). Timing: scripts/rl_timing.py over long3
+// and f6_s2 (means of the two runs: 47.8, 22.1, 50.4, 1.6 seconds).
 #block(breakable: false)[
 == Reinforcement learning with Miles <reinforcement-learning>
 
 Miles @miles is a reinforcement-learning framework that runs training and serving in one loop, which makes it a demanding test of framework compatibility. It runs its existing TPU workflow on libtt, reusing its TorchTitan trainer, SGLang-TorchTPU server and PyTorch model definitions, with no Tenstorrent-specific trainer or model port. A two-file patch to Miles 7767e158 enables its disk-based weight transfer on the TPU platform and replaces two CUDA-specific calls; TorchTitan carries Miles' own TPU patch.
 
-On a TT-QuietBox 2, Qwen3-0.6B trains on two Blackhole chips with FSDP2 and generates on two with tensor parallelism. Each of 90 group-relative policy optimization (GRPO) steps samples eight answers to each of 16 GSM8K training questions @gsm8k, scores their boxed answers, updates the model, and transfers the weights. The run uses AdamW at $2 times 10^(-6)$, BF16 model computation and FP32 parameters and optimizer state; generation uses BF16 weights.
+On a TT-QuietBox 2, Qwen3-0.6B trains on two Blackhole chips with FSDP2 and generates on two with tensor parallelism. Each of 90 group-relative policy optimization (GRPO) steps samples eight answers to each of 16 GSM8K training questions @gsm8k, scores their boxed answers, updates the model, and transfers the weights. Training uses AdamW at $2 times 10^(-6)$, BF16 computation and FP32 parameters and optimizer state; generation uses BF16 weights.
 
-With identical prompts, greedy decoding and a 1,024-token response limit, accuracy on all 1,319 GSM8K test questions rises from 58.00 to 72.25 per cent, a gain of 14.25 points (@rl-learning-curve). Both endpoints were evaluated in fresh servers and the answers independently rescored, which also verifies that the saved policy reloads correctly. The gain is not answer format: the starting policy already boxes 99 per cent of its answers, and wrong values fall from 544 to 262. With the learning rate set to zero, 30 steps of the same loop change no weight (every transfer is empty, and the served weights stay byte-identical) and leave test accuracy at 58.07 per cent, so rollouts, transfer and reloading do not move the policy on their own. Two further runs with other seeds, on libtt 0.2.2, reach 68.6 and 67.1 per cent after 30 steps, against 70.7 per cent for the original run, which used libtt 0.2.1. For the first rollout batch of each, an FP32 CPU computation of the answers' log-probabilities agrees with the trainer's batch mean to within 0.0003.
+Accuracy on all 1,319 GSM8K test questions, with greedy decoding and a 1,024-token limit, starts at 58 per cent. After 30 steps, three runs with different seeds, one on libtt 0.2.1 and two on 0.2.2, reach 68.3 to 70.7 per cent; after 90 steps, the two finished so far reach 72.4 and 74.6 per cent (@rl-learning-curve). The gain is not answer format: the starting policy already boxes 99 per cent of its answers. With the learning rate set to zero, accuracy stays at 58.07 per cent after 30 steps of the same loop, and the served weights stay unchanged. For two rollout batches, an FP32 CPU computation of the answers' log-probabilities agrees with the trainer's batch mean to within 0.0003.
 
 #figure(
   placement: none,
   rl-learning-image,
-  caption: [Qwen3-0.6B on GSM8K on four Blackhole chips. Left: training reward per step of the original 90-step run (grey) and its trailing 15-step mean (black), with the trailing means of two 30-step runs with other seeds (colour) and of the zero-learning-rate control (dashed). Right: test accuracy of the original run (circles: in-run evaluations; squares: fresh-server checks), of the two other seeds from their common starting point (colour), and of the control (dashed). All test points use greedy decoding and a 1,024-token response limit.],
+  caption: [Qwen3-0.6B on GSM8K on four Blackhole chips, three runs with different seeds (colour; blue on libtt 0.2.1, green still running). Left: training reward per step, as trailing 15-step means, and for the zero-learning-rate control (dashed). Right: test accuracy of each run, their mean (circles) and the control (dashed), with greedy decoding and a 1,024-token limit.],
 ) <rl-learning-curve>
 
-Over the original run's final 15 steps, generation averages 46 seconds, log-probabilities 24 seconds, training 51 seconds, and weight transfer 1.5 seconds. These runs demonstrate the complete RL loop; distributed training checkpoint and resume remain follow-up work.
+Over the final 15 steps of the finished runs, a step's generation averages 48 seconds, log-probabilities 22, training 50 and weight transfer 1.6. These runs demonstrate the complete RL loop; distributed training checkpoint and resume remain follow-up work.
 
 ]
