@@ -48,7 +48,13 @@ A framework's test suite is largely a list of small questions about what an oper
  
     [Integer arithmetic],
     [Remainder truncates. Powers wrap modulo $2^32$, as multiplication does, and unsigned negation is modular. High-word multiplication, arithmetic right shift, leading-zero and population counts, and integer dot products are supported. Integer select, clamp, and permute stay in integer arithmetic.],
- 
+
+    [Floating-point types],
+    [IEEE FP16 is a type distinct from BF16 from the PJRT buffer down to the kernel. `float8_e4m3fn` and `float8_e5m2` remain FP8 in buffers, compiler types, and the runtime, and layout changes, gathers, and copies preserve their bytes. Operations without a native FP8 implementation compute on widened values, and the quantization kernels return FP8 tensors directly.],
+
+    [Narrow integer types],
+    [Signed 8- and 16-bit integers are held in 32-bit integers, and integer operations on them stay in integer arithmetic.],
+
     [Conversion],
     [Float-to-integer conversion truncates toward zero. Integer narrowing keeps the low bits instead of saturating. A chain of explicit conversions keeps each intermediate rounding. Unsigned values keep their value: a `uint8` 255 is not $-1$. Bitcasts copy raw bits, and `reduce_precision` rounds as XLA does.],
  
@@ -62,13 +68,13 @@ A framework's test suite is largely a list of small questions about what an oper
     [Ties go to the smaller index. An initial value that is not the identity takes part in the reduction. Top-k returns its results in order.],
  
     [Reductions],
-    [Integer sums, maxima, and minima are exact instead of passing through FP32, which rounds above $2^24$. And, or, and xor reduce bitwise on integers and logically on booleans. A reduction may return several results, such as a minimum and a maximum together. Cumulative sums, maxima, and minima, and general scans, are supported.],
+    [Integer sums, maxima, and minima are computed exactly in integer arithmetic instead of passing through FP32, which rounds above $2^(24)$. `and`, `or`, and `xor` reduce bitwise on integers and logically on booleans. Variadic reductions, which return several results at once such as a minimum and a maximum together, are supported, as are cumulative sums, maxima, and minima and general scans.],
  
     [Convolution and pooling],
     [Convolution keeps StableHLO's cross-correlation convention where the operation library reverses the weights. Negative padding crops the input, and reversed windows and input dilation are handled. A single-channel convolution is no longer taken for a depthwise one. Padding folds into a pooling only when it supplies the reduction's initial value.],
  
     [Indexing],
-    [Gathers, scatters, and slices at computed positions take multi-component indices and windows. An out-of-range gather index is clamped, and an out-of-range scatter update is dropped. A scatter may add, multiply, or take the maximum or minimum, and applies duplicate updates in order.],
+    [Gathers, scatters, and slices at computed positions take multi-component indices and windows. An out-of-range gather index is clamped, and an out-of-range scatter update is dropped. A scatter may add, multiply, or take the maximum or minimum, and applies duplicate updates in order. All of these lower to two new operations, `rows_gather` and `rows_scatter`, which treat the operand as a table of rows and apply the out-of-bounds rule in the kernel, replacing the runtime's embedding lookup, gather, and scatter. Only the indices and updates are rearranged, so an embedding lookup does not copy its table.],
  
     [Control flow],
     [A while loop repeatedly invokes an outlined program and updates its state. Conditionals and multi-way branches may nest, and may run inside a trace (Section 6.1).],
@@ -96,10 +102,6 @@ A framework's test suite is largely a list of small questions about what an oper
   caption: [Framework behavior that required changes to the upstream stack],
 ) <tab-semantics>
 ]
- 
-Three problems kept occurring. First, the arithmetic units compute in floating point, so integer operations routed through FP32 were exact only up to $2^24$; libtt keeps them in integer arithmetic. Second, the default paths that load and pack floats normalize them, flushing subnormals and rewriting NaNs and signed zeros; libtt moves such values as raw bits. Third, the upstream lowerings covered only the cases exercised by the models Tenstorrent had ported, so out-of-range indices, empty tensors, and less common types either failed or gave different answers.
-
-The upstream indexing operations are a clear example of the third cause. StableHLO's gather and scatter are far more general than the runtime's embedding lookup, gather, and scatter. Libtt lowers every gather, scatter, and slice or slice update at a computed position to one of two new operations, `rows_gather` and `rows_scatter`, which treat the operand as a table of rows. The kernels apply the out-of-bounds rule themselves, and only the indices and updates are rearranged, so an embedding lookup does not copy its table. 
 
 == Numerics <numerical-types>
 
@@ -165,7 +167,7 @@ A model written in a framework is a graph of small operations. An RMS norm, for 
   ),
 ) <fusions>
 
-A fused kernel must be both faster and correct. Fewer programs do not by themselves guarantee a speedup: a kernel can still waste time reading padding or moving data between cores. A fused kernel must also preserve the rounding of the operations it replaces, since moving arithmetic between the matrix and vector units, or removing an intermediate cast, can change the result. Several of libtt’s fused kernels reproduce every rounding step, so their results match the separate operations bit for bit.
+A fused kernel must be both correct and fast. Fewer programs do not by themselves guarantee a speedup: a kernel can still waste time reading padding or moving data between cores. A fused kernel must also preserve the rounding of the operations it replaces, since moving arithmetic between the matrix and vector units, or removing an intermediate cast, can change the result. Several of libtt’s fused kernels reproduce every rounding step, so their results match the separate operations bit for bit.
 
 Some improvements come from the compiler level, with no new kernel implementations. A matrix product that yields one number per batch can be rewritten as a multiplication followed by a sum. A program that keeps only the largest softmax probabilities and renormalizes them can select the largest inputs first and apply softmax to those alone. Both rewrites reduce the work done by existing kernels.
 
