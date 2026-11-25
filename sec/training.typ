@@ -19,7 +19,7 @@
 
 Libtt runs TorchTitan's TPU training path on four Blackhole chips without changes to TorchTitan's source @torchtitan @torchtitantpu. This requires connecting the trainer to Tenstorrent's kernels, extending the compiler for gradient computations, and reducing training's memory requirements. The results below cover full-size model throughput and a completed fine-tuning run.
 
-The trainer uses the TorchTPU compatibility layer described in @pytorch, with one process per chip. Fully sharded data parallelism @simplefsdp divides the parameters, gradients, and optimizer state among the chips: each chip keeps a quarter of each, gathers a layer's weights before using them, and receives its share of the summed gradients afterward. Each chip trains on its own sequences.
+The trainer uses the TorchTPU compatibility layer described in @pytorch, with one process per chip. Fully sharded data parallelism @simplefsdp divides the parameters, gradients, and optimizer state among the chips. In these four-chip runs, each chip keeps a quarter of each, gathers a layer's weights before using them, and receives its share of the summed gradients afterward. Each chip trains on its own sequences.
 
 == Training kernels
 
@@ -39,7 +39,7 @@ _Removing differentiation overhead._ Libtt removes some of the work that automat
 
 _Eliminating tile padding._ Tiled storage matters throughout the backward pass. Llama 3’s rotary-embedding expression creates a trailing dimension of two, which occupies 32 columns in tiled storage, a sixteenfold padding cost. Libtt rewrites the operation to work on separate halves of each head, which avoids that cost and preserves the values and gradients. This is one example of the layout work described in @compiler.
 
-_Freeing collective memory._ Collectives need temporary storage, and libtt reduces it: Large reduce-scatter operations run in pieces so they no longer need one large contiguous allocation. This makes more of each chip's memory available to the model to use larger batch size.
+_Freeing collective memory._ Collectives need temporary storage, and libtt reduces it: Large reduce-scatter operations run in pieces so they no longer need one large contiguous allocation. This makes more of each chip's memory available to the model, so it can use larger batches.
 
 == Throughput and CPU checks <training-checks>
 
