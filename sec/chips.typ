@@ -8,7 +8,7 @@ Libtt implements the local computation and communication that the framework's pa
 
 == Single controller
 
-A JAX program states how its arrays are divided by annotating them, and the Shardy partitioner propagates the annotations through the program. With `shard_map`, the programmer can instead write the per-chip computation explicitly and mix it with automatically partitioned code. libtt supports both forms and their combination. After partitioning, the compiler rewrites every shape to the piece one chip holds, and whatever must cross between chips appears as an explicit _collective_: an all-reduce that sums, or takes the maximum or minimum of, the values the chips hold; an all-gather that concatenates them; or a send from each chip to another.
+A JAX program states how its arrays are divided by annotating them, and the Shardy partitioner propagates the annotations through the program. With `shard_map`, the programmer can instead write the per-chip computation explicitly and mix it with automatically partitioned code. Libtt supports both forms and their combination. After partitioning, the compiler rewrites every shape to the piece one chip holds, and whatever must cross between chips appears as an explicit _collective_: an all-reduce that sums, or takes the maximum or minimum of, the values the chips hold; an all-gather that concatenates them; or a send from each chip to another.
 
 A single controller drives all the chips. Data crosses between them over their Ethernet links, routed by small kernels on each chip, and never passes through the host. No launcher or message-passing library is needed, so the server starts as it does on one chip, with one additional flag.
 
