@@ -65,27 +65,27 @@ _Freeing collective memory._ Collectives need temporary storage, and libtt reduc
   ),
 ) <training-runs>
 
-The checks against a CPU are separate from these full-size throughput measurements. Tested small models and selected layers are trained for a few steps from the same saved starting point on both the CPU and the chips. They include TorchTitan's debug models and the first two layers of Llama 3 8B with its full vocabulary and 8,192-token sequences. In these checks, the first losses agree to three digits or more, and subsequent losses differ by at most about one per cent. Different kernels, rounding, and summation order can produce small differences that accumulate across updates.
+The checks against a CPU are separate from these full-size throughput measurements. Tested small models and selected layers are trained for a few steps from the same saved starting point on both the CPU and the chips. They include TorchTitan's debug models and the first two layers of Llama 3 8B with its full vocabulary and 8,192-token sequences. In these checks, the first losses agree to three digits or more, and subsequent losses differ by at most about one percent. Different kernels, rounding, and summation order can produce small differences that accumulate across updates.
 
 The DeepSeek-V3, Qwen3 MoE, and Qwen3.5 MoE debug models run unchanged in PyTorch eager mode with 32-bit floats. 
 
 == Supervised Fine-tuning <fine-tuning>
 
-Qwen3.5-9B-Base is fine-tuned to call functions on ToolACE @toolace: 11,300 examples whose system prompt lists functions in JSON and whose reply is the calls, as a Python list such as `[get_weather(city="Paris")]`, or a statement that none applies. The recipe adapts TorchTitan's Llama 3 fine-tuning example: a loss on the reply's tokens, whole samples of up to 2,048 tokens packed into 8,192 tokens per chip, 300 steps (1.25 passes over the data), AdamW at up to $2 times 10^(-5)$ with 25 warm-up steps and cosine decay, and BF16 parameters, gradients and optimizer state. A fixed 2 per cent is held out; weights load and save as Hugging Face checkpoints.
+Qwen3.5-9B-Base is fine-tuned to call functions on ToolACE @toolace: 11,300 examples whose system prompt lists functions in JSON and whose reply is the calls, as a Python list such as `[get_weather(city="Paris")]`, or a statement that none applies. The recipe adapts TorchTitan's Llama 3 fine-tuning example: a loss on the reply's tokens, whole samples of up to 2,048 tokens packed into 8,192 tokens per chip, 300 steps (1.25 passes over the data), AdamW at up to $2 times 10^(-5)$ with 25 warm-up steps and cosine decay, and BF16 parameters, gradients and optimizer state. A fixed 2 percent is held out; weights load and save as Hugging Face checkpoints.
 
 A step took 29.5 seconds (278 tokens per second per chip); the held-out loss falls from 0.448 after the first step to 0.302 by step 25 and 0.252 after 300 (@sft-loss).
 
 #figure(
   placement: auto,
   fig-sft-loss,
-  caption: [Fine-tuning Qwen3.5-9B-Base on ToolACE: training loss per step (grey), its 75-step centred mean (black) and held-out loss (circles).],
+  caption: [Fine-tuning Qwen3.5-9B-Base on ToolACE: training loss per step (gray), its 75-step centered mean (black) and held-out loss (circles).],
 ) <sft-loss>
 
 Both models answer BFCL's five single-turn categories @bfcl (1,240 tests), scored by its own prompt, parser and syntax-tree checker and served greedily by SGLang-TorchTPU with up to 1,024 tokens.
 
 #figure(
   placement: auto,
-  caption: [Function calling on BFCL (per cent of tests passed) before and after fine-tuning, with the chat template's thinking and non-thinking prompts. Lenient reads any list of calls after removing copied template placeholders, a control for answer format. Mean: unweighted, over the five categories.],
+  caption: [Function calling on BFCL (percent of tests passed) before and after fine-tuning, with the chat template's thinking and non-thinking prompts. Lenient reads any list of calls after removing copied template placeholders, a control for answer format. Mean: unweighted, over the five categories.],
   table(
     columns: 5,
     align: (left, right, right, right, right),
@@ -103,9 +103,9 @@ Both models answer BFCL's five single-turn categories @bfcl (1,240 tests), score
   ),
 ) <bfcl-results>
 
-Fine-tuning raises the mean from 64.8 to 88.5 per cent with the same prompt, and to 91.0 per cent with the non-thinking prompt that matches the training format (@bfcl-results); read leniently, the Base model reaches at most 75.8 per cent.
+Fine-tuning raises the mean from 64.8 to 88.5 percent with the same prompt, and to 91.0 percent with the non-thinking prompt that matches the training format (@bfcl-results); read leniently, the Base model reaches at most 75.8 percent.
 
-We also checked the training against a CPU on MetaMathQA @metamath, TorchTitan's own fine-tuning example. A scaled-down run with the same starting point and data gives the same losses on the chips as on the CPU, to within 0.2 per cent per step on average, in both BF16 and FP32. In serving, the chips choose the same next token as a CPU reference at about 99 per cent of positions, with most differences at the limit of BF16 precision.
+We also checked the training against a CPU on MetaMathQA @metamath, TorchTitan's own fine-tuning example. A scaled-down run with the same starting point and data gives the same losses on the chips as on the CPU, to within 0.2 percent per step on average, in both BF16 and FP32. In serving, the chips choose the same next token as a CPU reference at about 99 percent of positions, with most differences at the limit of BF16 precision.
 #import "fig-rl-learning.typ": rl-learning-image
 
 // Miles 7767e158 + two-file disk-delta portability patch. Runs: the original long3 (seed 1234 / 42; training: the
@@ -114,22 +114,20 @@ We also checked the training against a CPU on MetaMathQA @metamath, TorchTitan's
 // and serving); versions.txt in each.
 // Format breakdown: ~/tt-work/techreport/exp/r0/classify.py.
 // Log-probability check: exp/r3/ (R3: first batches of r1_s2 and r1_s3; F5's per-token check could not run). Timing: scripts/rl_timing.py over the
-// three runs (means: 47.5, 21.2, 49.7, 1.6 seconds). Step 90: 72.40, 74.60, 72.78 per cent (mean 73.26).
-#block(breakable: false)[
+// three runs (means: 47.5, 21.2, 49.7, 1.6 seconds). Step 90: 72.40, 74.60, 72.78 percent (mean 73.26).
 == Reinforcement learning with Miles <reinforcement-learning>
 
 Miles @miles is a reinforcement-learning framework that runs training and serving in one loop, which makes it a demanding test of framework compatibility. It runs its existing TPU workflow on libtt, reusing its TorchTitan trainer, SGLang-TorchTPU server and PyTorch model definitions, with no Tenstorrent-specific trainer or model port.#footnote[A two-file patch to Miles enables its disk-based weight transfer on the TPU platform and replaces two CUDA-specific calls.]
 
 On a TT-QuietBox 2, Qwen3-0.6B trains on two Blackhole chips with FSDP2 and generates on two with tensor parallelism. Each of 90 group-relative policy optimization (GRPO) steps samples eight answers to each of 16 GSM8K training questions @gsm8k, scores their boxed answers, updates the model, and transfers the weights. Training uses AdamW at $2 times 10^(-6)$, BF16 computation and FP32 parameters and optimizer state; generation uses BF16 weights.
 
-Three runs with different seeds raise accuracy on all 1,319 GSM8K test questions, with greedy decoding and a 1,024-token limit, from 58 per cent at step 0 to 73.3 per cent on average after 90 steps (72.4 to 74.6 per cent; @rl-learning-curve). The gain is not answer format: the starting policy already boxes 99 per cent of its answers. For two rollout batches, an FP32 CPU computation of the answers' log-probabilities agrees with the trainer's batch mean to within 0.0003.
+Three runs with different seeds raise accuracy on all 1,319 GSM8K test questions, with greedy decoding and a 1,024-token limit, from 58 percent at step 0 to 73.3 percent on average after 90 steps (72.4 to 74.6 percent; @rl-learning-curve). The gain is not answer format: the starting policy already boxes 99 percent of its answers. For two rollout batches, an FP32 CPU computation of the answers' log-probabilities agrees with the trainer's batch mean to within 0.0003.
 
 #figure(
-  placement: none,
+  placement: auto,
   rl-learning-image,
-  caption: [Qwen3-0.6B on GSM8K on four Blackhole chips, three runs with different seeds (colour). Left: training reward per step, as trailing 15-step means. Right: test accuracy of each run and their mean (circles), with greedy decoding and a 1,024-token limit.],
+  caption: [Qwen3-0.6B on GSM8K on four Blackhole chips, three runs with different seeds (color). Left: training reward per step, as trailing 15-step means. Right: test accuracy of each run and their mean (circles), with greedy decoding and a 1,024-token limit.],
 ) <rl-learning-curve>
 
 Over the runs' final 15 steps, a step's generation averages 48 seconds, log-probabilities 21, training 50 and weight transfer 1.6. These runs demonstrate the complete RL loop; distributed training checkpoint and resume remain follow-up work.
 
-]

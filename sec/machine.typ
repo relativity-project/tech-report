@@ -3,7 +3,7 @@
 
 = The Machine <machine>
 
-A Blackhole chip has 120 small computers, which Tenstorrent calls Tensix cores, laid out in a grid @blackhole. Each has 1.5 megabytes of memory, five 32-bit RISC-V processors, a unit that multiplies matrices, a unit that does arithmetic on vectors, and connections to two networks that join it to its neighbours @metaliumguide. Beside the grid are 32 gigabytes of on-chip memory DRAM, which any core can read and write over the networks (@core). There is no cache shared between cores. The run-time system gives 110 of the cores to programs.
+A Blackhole chip has 120 small computers, which Tenstorrent calls Tensix cores, laid out in a grid @blackhole. Each has 1.5 megabytes of memory, five 32-bit RISC-V processors, a unit that multiplies matrices, a unit that does arithmetic on vectors, and connections to two networks that join it to its neighbors @metaliumguide. Beside the grid are 32 gigabytes of GDDR6 DRAM, which any core can read and write over the networks (@core). There is no cache shared between cores. The run-time system gives 110 of the cores to programs.
 
 #fig-core <core>
 
@@ -58,7 +58,7 @@ A card holds one or two chips and plugs into a PCI Express slot. Most measuremen
     [Software stack],
     [CUDA or ROCm, with framework backends],
     [XLA and libtpu, with framework backends],
-    [TT-Metalium and TTNN; libtt is a drop in replacement for libtpu, integrates JAX and PyTorch],
+    [TT-Metalium and TTNN; libtt is a drop-in replacement for libtpu, integrates JAX and PyTorch],
 
     [Compilation and replay],
     [Framework graph compilation; CUDA/HIP graphs capture and replay launches @cudaguide @hipgraphs],
@@ -99,7 +99,7 @@ The vector unit handles everything else, such as the nonlinear functions in acti
 
 Work on the chip is expressed as kernels. A _kernel_ is a small #cpp program. In the usual arrangement, one processor runs a _reader_, which fetches tiles from DRAM or from another core into buffers in the core's memory; three run a _compute_ kernel, which unpacks tiles into the arithmetic units, operates on them, and packs the results; and one runs a _writer_, which sends the results on. The kernels on all the cores that take part, together with their arguments, make up a _program_. One operation of a model, such as a matrix product or a norm, is ordinarily one program.
 
-Kernels are compiled on the host by a RISC-V compiler the first time they are needed, and the compiled binaries are cached on disk. It does not start programs on the cores itself. Instead, it writes commands into a queue, and two kernels that are always running on the chip, a _prefetcher_ and a _dispatcher_, read the queue, hand each core its kernels and arguments, and signal it to start.
+Kernels are compiled on the host by a RISC-V compiler the first time they are needed, and the compiled binaries are cached on disk. The host does not start programs on the cores itself. Instead, it writes commands into a queue, and two kernels that are always running on the chip, a _prefetcher_ and a _dispatcher_, read the queue, hand each core its kernels and arguments, and signal it to start.
 
 A sequence of commands can also be recorded on the chip and replayed later with a single command. Such a recording is called a _trace_.
 
@@ -109,7 +109,7 @@ Three characteristics of the hardware and the PyTorch and JAX workloads we run o
 
 _Starting a program is not free_, so libtt fuses programs. A small program, one that adds two tensors, say, takes about 5 microseconds on all 110 cores and about 2 on only the cores with work. That is small, but a language model runs a great many programs during decode: Qwen3.8-27B on four chips runs more than 1,000 for each decode step. So libtt fuses operations to do the same arithmetic in fewer programs, and launches each one only on the cores that have work. It also uses tracing to avoid host dispatch overhead when launching programs.
 
-_A row is a bad shape for a tile_, so libtt moves only the rows that hold data. Many intermediate tensors during small-batch decoding contain only one row, or a few. Reading and writing whole tiles can therefore move up to 32 times as much data as the computation needs. Some of libtt's kernels differ from the ones they replace in touching only the rows that hold data. Sometimes we use different logical and physical tensor dimensions to reduce wasted space by padding. For example a single large vector of size $n$ might be stored as a $(n/32, 32)$ shape tensor.
+_A row is a bad shape for a tile_, so libtt moves only the rows that hold data. Many intermediate tensors during small-batch decoding contain only one row, or a few. Reading and writing whole tiles can therefore move up to 32 times as much data as the computation needs. Some of libtt's kernels differ from the ones they replace in touching only the rows that hold data. Sometimes we use different logical and physical tensor dimensions to reduce wasted space by padding. For example, a single large vector of size $n$ might be stored as a $(n/32, 32)$ shape tensor.
 
 _Speed is limited by memory_, so libtt keeps the memory busy with weights and with little else. To produce a token, a dense model reads nearly every one of its weights, and in a decoding step the time of a matrix product goes to streaming them. Libtt's kernel for this product gives every core weights to read, reads on both of a core's networks at once, and spreads the reads over the banks of memory. With several chips, each holds a share of the weights and all read at once. Intermediate results stay on the chip: a fused program passes them from core to core instead of through memory.
 

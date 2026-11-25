@@ -62,7 +62,7 @@
 // Figure: one Tensix core, and where it sits.
 #let fig-core = figure(
   placement: auto,
-  caption: [A Blackhole chip is a grid of cores beside a large memory. Each core is a small computer with 5 RISC-V cores, a vector and a matrix unit, and a small amount of local SRAM.],
+  caption: [A Blackhole chip is a grid of cores beside a large memory. Each core is a small computer with five RISC-V processors, a vector and a matrix unit, and a small amount of local SRAM.],
   cetz.canvas(length: 1cm, {
     import cetz.draw: *
     set-style(stroke: 0.6pt, mark: (fill: black, scale: 0.8))

@@ -8,7 +8,7 @@ Everything is in one shared library, `libtt.so`. It contains the PJRT plugin, th
 
 == The compiler
 
-Kernels are compiled on the user's machine, so the library has to bring a compiler with it. Embedded in `libtt.so` is a compressed archive that holds a RISC-V GCC, the sources of every kernel and of the firmware, and the linker scripts. When the library is loaded it unpacks the archive into a temporary directory named after the archive's hash, and points the run-time system at it. A file lock makes this safe when several processes start at once. The compiler and runtime is compressed aggressively and as a result the full release built of the `libtt.so` file is less than 90MB.
+Kernels are compiled on the user's machine, so the library has to bring a compiler with it. Embedded in `libtt.so` is a compressed archive that holds a RISC-V GCC, the sources of every kernel and of the firmware, and the linker scripts. When the library is loaded it unpacks the archive into a temporary directory named after the archive's hash, and points the run-time system at it. A file lock makes this safe when several processes start at once. The compiler and runtime are compressed aggressively, so the full release build of `libtt.so` is less than 90 MB.
 
 == Patches
 

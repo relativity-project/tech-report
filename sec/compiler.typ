@@ -19,7 +19,7 @@ Finally, the result is serialized as a table of calls, which an interpreter in t
 
 The compiler defines three optimization levels, of which two are in use. At the lowest, every operation uses the highest-precision arithmetic the matrix unit offers. At the next, an optimizer queries the operation library for the layouts and types each call accepts and selects among them. SGLang-JAX compiles at the second level; torch_tpu at the lowest.
 
-The upstream compiler already includes all four stages. libtt’s additions are described in the sections that follow.
+The upstream compiler already includes all four stages. Libtt’s additions are described in the sections that follow.
 
 == Matching framework semantics
 
@@ -44,7 +44,7 @@ A framework's test suite is largely a list of small questions about what an oper
     [A NaN is not equal to itself, so floating-point self-comparisons are no longer folded. Total-order comparisons, which JAX's sort and `searchsorted` use, place $-0$ below $+0$ and NaNs at both ends.],
  
     [NaN and signed zero],
-    [Cumulative maxima and minima propagate NaN, and `sign` of a NaN is NaN. Negation and `log1p` keep the sign of zero. Moving or repacking a 16-bit float preserves its bits, where the default path flushed subnormals, folded $-0$ into $+0$, and rewrote NaNs.],
+    [Cumulative maxima and minima propagate NaN, and the `sign` of a NaN is NaN. Negation and `log1p` keep the sign of zero. Moving or repacking a 16-bit float preserves its bits, where the default path flushed subnormals, folded $-0$ into $+0$, and rewrote NaNs.],
  
     [Integer arithmetic],
     [Remainder truncates. Powers wrap modulo $2^32$, as multiplication does, and unsigned negation is modular. High-word multiplication, arithmetic right shift, leading-zero and population counts, and integer dot products are supported. Integer select, clamp, and permute stay in integer arithmetic.],
@@ -107,7 +107,7 @@ A framework's test suite is largely a list of small questions about what an oper
 
 === FP16 and FP8
 
-Supporting a numeric type requires agreement at every layer, from the PJRT buffer down to the kernel. libtt adds IEEE FP16 as a type distinct from BF16 throughout this path. Operations that only move values preserve their bit patterns, including signed zeros and subnormals, by copying the underlying bits rather than passing them through floating-point arithmetic.
+Supporting a numeric type requires agreement at every layer, from the PJRT buffer down to the kernel. Libtt adds IEEE FP16 as a type distinct from BF16 throughout this path. Operations that only move values preserve their bit patterns, including signed zeros and subnormals, by copying the underlying bits rather than passing them through floating-point arithmetic.
 
 The FP8 formats float8_e4m3fn and float8_e5m2 likewise remain FP8 in PJRT buffers, the compiler’s tensor types, and the runtime. These are per-element floating-point formats, distinct from the BFP8 block format described in @machine. Layout changes, gathers, copies, and other data movement preserve their bytes, and the quantization kernels return FP8 tensors directly.
 
