@@ -118,7 +118,7 @@ We also checked the training against a CPU on MetaMathQA @metamath, TorchTitan's
 #block(breakable: false)[
 == Reinforcement learning with Miles <reinforcement-learning>
 
-Miles @miles is a reinforcement-learning framework that runs training and serving in one loop, which makes it a demanding test of framework compatibility. It runs its existing TPU workflow on libtt, reusing its TorchTitan trainer, SGLang-TorchTPU server and PyTorch model definitions, with no Tenstorrent-specific trainer or model port. A two-file patch to Miles 7767e158 enables its disk-based weight transfer on the TPU platform and replaces two CUDA-specific calls; TorchTitan carries Miles' own TPU patch.
+Miles @miles is a reinforcement-learning framework that runs training and serving in one loop, which makes it a demanding test of framework compatibility. It runs its existing TPU workflow on libtt, reusing its TorchTitan trainer, SGLang-TorchTPU server and PyTorch model definitions, with no Tenstorrent-specific trainer or model port.#footnote[A two-file patch to Miles enables its disk-based weight transfer on the TPU platform and replaces two CUDA-specific calls.]
 
 On a TT-QuietBox 2, Qwen3-0.6B trains on two Blackhole chips with FSDP2 and generates on two with tensor parallelism. Each of 90 group-relative policy optimization (GRPO) steps samples eight answers to each of 16 GSM8K training questions @gsm8k, scores their boxed answers, updates the model, and transfers the weights. Training uses AdamW at $2 times 10^(-6)$, BF16 computation and FP32 parameters and optimizer state; generation uses BF16 weights.
 
