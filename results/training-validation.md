@@ -31,7 +31,7 @@ end) use the 0.2.2 release, main 2c68912a, which contains it. Logs are on the Qu
 | F2 BFCL at 1,024 tokens | yes (server context 4,096) | 64.8% → 88.5% (same prompt), 91.0% (non-thinking); Base at most 75.8% read leniently; gain beyond format at each model's best shrinks 17.9 → 15.2 points, so the report quotes these | `../fc/out_f2/` |
 | F3 loss fix on the release | yes | Chips vs CPU 0.0004 per step (BF16 and FP32; std 0.0005, max 0.0018; step 1 +0.0010); ToolACE's first 5 steps read 0.0002–0.0003 above the reported run | `logs/f3_*` |
 | F4 margins at every serving disagreement | yes | Base: 60% of 1,779 disagreements are BF16 ties, 40% exceed one step (max 1.6), mostly in capped completions; fine-tuned: 93% of 124 | `eval/out_f4/` |
-| F5 trainer per-token log-probabilities | running (first attempt refused by Miles' argument check) | — | `rl/runs/f5*` |
+| F5 trainer per-token log-probabilities | no: cannot run as written; Miles' torchtitan backend refuses the train-data dump, also when `--dump-details` sets it (tried twice; stopped per the handoff) | The report keeps R3's batch-mean wording: the trainer's batch mean within 0.0003 of an FP32 CPU reference | `rl/runs/f5*` |
 | F6 RL seeds at 90 steps | yes: seeds 1235 / 43 and 1236 / 44; with the published run, three (user: no 90-step control, evaluations at 30, 60, 90) | Step 90: 72.4, 74.6 and 72.8% (mean 73.3%, from 58.1%); step 60: 72.4, 70.6 and 72.6%; step 30: 70.7, 69.0 and 68.3%; 117–123 s a step | `rl/runs/f6_*` |
 | F7 second seed per precision arm | no (user: skipped for time) | The report says the three arms end indistinguishable | — |
 
@@ -512,3 +512,22 @@ points at these accuracies); the published run's 72.4% is the lowest of the thre
 Over the final 15 steps (`scripts/rl_timing.py`), a step takes 122.6, 122.2 and 117.0 seconds (generation 45.7, 49.9,
 47.0; log-probabilities 23.9, 20.2, 19.6; training 50.9, 49.9, 48.2; weight transfer 1.5, 1.6, 1.6); the report quotes
 the means of the three (47.5, 21.2, 49.7, 1.6). Each new run took 3.5–3.75 hours including the evaluations.
+
+## F5: trainer per-token log-probabilities (not run: Miles refuses the dump)
+
+The plan: replay the first saved rollout batch of `r1_s2` through Miles' trainer on the release build
+(`--debug-train-only --load-debug-rollout-data`), save the trainer's per-token log-probabilities, and compare them
+token by token with the FP32 CPU reference (`exp/r3/f5/trainer_vs_cpu.py`, written and ready). Miles' torchtitan
+backend has no train-data dump; a temporary local patch adding one (`exp/r3/f5/torch_native_train_dump.patch`,
+applied only for the run and reverted after) was prepared. Both attempts stopped in Miles' argument check before
+training (`miles/backends/torchtitan_utils/arguments.py`, `validate_torchtitan_args`: "--save-debug-train-data is not
+wired up for the torchtitan backend"):
+
+- `rl/runs/f5_trainer_logprobs`: `--save-debug-train-data` directly.
+- `rl/runs/f5b_trainer_logprobs`: `--dump-details`, which sets the same path; the check refuses it too (the argument
+  check that exempts `--dump-details` is a different one, in `miles/utils/arguments.py`).
+
+Running it would mean removing that check in Miles as well, a further change to the software under test, so per the
+handoff the item stops here. The report keeps the batch-mean wording (R3): for the first batches of `r1_s2` and
+`r1_s3`, the trainer's mean log-probability is within 0.0003 of the FP32 CPU reference's. Miles' working tree is back
+to the two-file portability patch.

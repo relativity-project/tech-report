@@ -113,7 +113,7 @@ We also checked the training against a CPU on MetaMathQA @metamath, TorchTitan's
 // ~/tt-work/techreport/exp/rl/runs/f6_s2, f6_s3 (seeds 1235 / 43, 1236 / 44; libtt 0.2.2 release 2c68912a, training
 // and serving); versions.txt in each.
 // Format breakdown: ~/tt-work/techreport/exp/r0/classify.py.
-// Log-probability check: exp/r3/ (R3: first batches of r1_s2 and r1_s3). Timing: scripts/rl_timing.py over the
+// Log-probability check: exp/r3/ (R3: first batches of r1_s2 and r1_s3; F5's per-token check could not run). Timing: scripts/rl_timing.py over the
 // three runs (means: 47.5, 21.2, 49.7, 1.6 seconds). Step 90: 72.40, 74.60, 72.78 per cent (mean 73.26).
 #block(breakable: false)[
 == Reinforcement learning with Miles <reinforcement-learning>
