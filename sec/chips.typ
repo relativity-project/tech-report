@@ -1,6 +1,6 @@
 = Distributed Execution Across Chips <chips>
 
-libtt runs a single program across multiple chips. It organizes the chips into a logical _mesh_, places each array by dividing it across one or more mesh axes, replicating it across others, or holding it on one chip, and provides collective operations that exchange or combine data when a computation needs values held on other chips.
+Libtt runs a single program across multiple chips. It organizes the chips into a logical _mesh_, places each array by dividing it across one or more mesh axes, replicating it across others, or holding it on one chip, and provides collective operations that exchange or combine data when a computation needs values held on other chips.
 
 This supports many different ways of dividing work, including the following ones: _Data parallelism_ assigns different examples to different chips, usually with a copy of the model on each. _Tensor parallelism_ divides the tensors and computations within a layer @megatron. _Expert parallelism_ places the experts of a mixture-of-experts model on different chips. _Fully sharded data parallelism_ distributes parameters, gradients, and optimizer state across chips and gathers parameters when needed. _Pipeline parallelism_ assigns successive groups of layers to different chips and passes intermediate results between them. _Sequence parallelism_ divides some intermediate activations along the sequence dimension, and _context parallelism_ also distributes attention over parts of a long sequence. TorchTitan's four-chip training runs are a concrete example of fully sharded data parallelism (@training).
 
@@ -14,7 +14,7 @@ A single controller drives all the chips. Data crosses between them over their E
 
 All-reduce matters most for tensor-parallel decoding, where it combines partial results within every layer. Libtt reduced its cost from two programs to one: each chip sends its rows directly into spare memory on the others, and each adds what it receives. Only rows that hold data are sent, and sums that must be exact, of integers or 32-bit floats, are computed on the vector unit.
 
-Before libtt, a row-divided embedding table forced a choice between gathering the whole table onto every chip for each lookup and keeping a full copy on every chip. libtt needs neither. Each chip looks the token up in its own rows and returns zeros if the row is elsewhere, and an all-reduce sums the results. Each chip therefore stores only its share of the table, so memory per chip falls as chips are added, and only one embedding vector per token crosses between chips, never the table.
+Before libtt, a row-divided embedding table forced a choice between gathering the whole table onto every chip for each lookup and keeping a full copy on every chip. Libtt needs neither. Each chip looks the token up in its own rows and returns zeros if the row is elsewhere, and an all-reduce sums the results. Each chip therefore stores only its share of the table, so memory per chip falls as chips are added, and only one embedding vector per token crosses between chips, never the table.
 
 In mixture-of-experts layers, each chip holds a subset of the experts and computes their contributions to the tokens routed to them, and a collective sums the partial outputs into the layer's result @libtt.
 
