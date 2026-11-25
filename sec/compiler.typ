@@ -167,7 +167,7 @@ A model written in a framework is a graph of small operations. An RMS norm, for 
   ),
 ) <fusions>
 
-A fused kernel must be both faster and not change the numerics. Fewer programs do not by themselves guarantee a speedup, because a kernel can still waste time reading padding or moving data between cores. Fusion must also preserve the rounding of the operations it replaces: moving arithmetic between the matrix and vector units, or removing an intermediate cast, can change the result. Several of libtt's fused kernels reproduce every rounding step, so their results match the unfused operations bit for bit.
+A fused kernel must be both correct and fast. Fewer programs do not by themselves guarantee a speedup, because a kernel can still waste time reading padding or moving data between cores. Fusion must also preserve the rounding of the operations it replaces: moving arithmetic between the matrix and vector units, or removing an intermediate cast, can change the result. Several of libtt’s fused kernels reproduce every rounding step, so their results match the unfused operations bit for bit.
 
 Some improvements require no new kernels and come entirely from compiler rewrites. A matrix product that yields one number per batch becomes a multiplication followed by a sum. A program that keeps only the largest softmax probabilities and renormalizes them instead selects the largest inputs first and applies softmax to those alone. Both rewrites reduce the work that existing kernels perform.
 
@@ -189,4 +189,4 @@ The tiled storage described in @machine affects far more than matrix multiplicat
 
 Libtt keeps data in layouts that neighboring operations can consume directly, which avoids unnecessary layout conversions, and it moves elementwise work to shapes that occupy fewer tiles. For wide rows, it regroups data into fuller tiles for reductions or uses kernels that skip the unused parts of tiles, reducing both memory traffic and work spent on padding @libtt. The rotary-embedding example in @training shows how a dimension of two occupies 32 columns in tiled storage, and how a rewrite avoids that padding.
 
-These layout choices must also respect the numerical requirements in @numerical-types. Libtt uses vector-unit arithmetic and 32-bit accumulation where needed, and its optimizations preserve these choices instead of falling back on the runtime's defaults.
+These layout choices must also respect the numerical requirements in @numerical-types. Libtt uses vector-unit arithmetic and 32-bit accumulation where needed, and its optimizations preserve these choices instead of falling back on the runtime’s defaults.
