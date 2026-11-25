@@ -78,7 +78,7 @@ A step took 29.5 seconds (278 tokens per second per chip); the held-out loss fal
 #figure(
   placement: auto,
   fig-sft-loss,
-  caption: [Fine-tuning Qwen3.5-9B-Base on ToolACE: training loss per step (grey), its 25-step trailing mean (black) and held-out loss (circles).],
+  caption: [Fine-tuning Qwen3.5-9B-Base on ToolACE: training loss per step (grey), its 75-step centred mean (black) and held-out loss (circles).],
 ) <sft-loss>
 
 Both models answer BFCL's five single-turn categories @bfcl (1,240 tests), scored by its own prompt, parser and syntax-tree checker and served greedily by SGLang-TorchTPU with up to 1,024 tokens.
