@@ -6,9 +6,9 @@
 // fused-loss fix, 56d7f486, later #568; the 0.2.2 release 2c68912a logs the same losses within 0.0003, F3; TorchTitan
 // 94063ded, recipe ttx.qwen35_9b_sft_toolace); BFCL with bfcl-eval 2026.3.23 through SGLang-TorchTPU on the 0.2.2
 // release 2c68912a, 1,024 tokens: ~/tt-work/techreport/fc/out_f2/results.jsonl and lenient.out (F2).
-// MetaMathQA checks: S1 exp/logs/s1c_9b.log; S2 exp/logs/s2_*.log and exp/eval/out/results.jsonl; CPU reference
-// exp/logs/f3_tt_*.log against exp/logs/s3_cpu_*.log (F3, release 2c68912a); serving exp/eval/out_f4/tf_results.jsonl
-// (F4); S5 exp/eval/out/results.jsonl (9b-* tags); published run ~/tt-work/train35/logs/sft300b.log.
+// MetaMathQA checks: CPU reference exp/logs/f3_tt_*.log against exp/logs/s3_cpu_*.log (F3, release 2c68912a; mean
+// relative per-step difference 0.14% BF16, 0.18% FP32); serving exp/eval/out/tf_results.jsonl and
+// exp/eval/out_f4/tf_results.jsonl (S4, F4; 98.6% Base, 99.7% fine-tuned, 60% / 93% of differences BF16 ties).
 
 #import "fig-sft-loss.typ": fig-sft-loss
 
@@ -105,7 +105,7 @@ Both models answer BFCL's five single-turn categories @bfcl (1,240 tests), score
 
 Fine-tuning raises the mean from 64.8 to 88.5 per cent with the same prompt, and to 91.0 per cent with the non-thinking prompt that matches the training format (@bfcl-results); read leniently, the Base model reaches at most 75.8 per cent.
 
-We also checked the training against a CPU on MetaMathQA @metamath, TorchTitan's own fine-tuning example. A scaled-down run with the same starting point and data gives the same losses on the chips as on the CPU, to within 0.2 per cent per step on average, in both BF16 and FP32. In serving, the chips choose the same next token as a CPU reference at about 99 per cent of positions, with most differences at the limit of BF16 precision. The GSM8K improvement first reported for this run came mostly from shorter answers in the expected format.
+We also checked the training against a CPU on MetaMathQA @metamath, TorchTitan's own fine-tuning example. A scaled-down run with the same starting point and data gives the same losses on the chips as on the CPU, to within 0.2 per cent per step on average, in both BF16 and FP32. In serving, the chips choose the same next token as a CPU reference at about 99 per cent of positions, with most differences at the limit of BF16 precision.
 #import "fig-rl-learning.typ": rl-learning-image
 
 // Miles 7767e158 + two-file disk-delta portability patch. Original run: long3 (training: the miles-attention and
