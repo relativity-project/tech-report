@@ -32,7 +32,7 @@ end) use the 0.2.2 release, main 2c68912a, which contains it. Logs are on the Qu
 | F3 loss fix on the release | yes | Chips vs CPU 0.0004 per step (BF16 and FP32; std 0.0005, max 0.0018; step 1 +0.0010); ToolACE's first 5 steps read 0.0002–0.0003 above the reported run | `logs/f3_*` |
 | F4 margins at every serving disagreement | yes | Base: 60% of 1,779 disagreements are BF16 ties, 40% exceed one step (max 1.6), mostly in capped completions; fine-tuned: 93% of 124 | `eval/out_f4/` |
 | F5 trainer per-token log-probabilities | running (first attempt refused by Miles' argument check) | — | `rl/runs/f5*` |
-| F6 RL seeds at 90 steps | seed 1235 / 43 done; 1236 / 44 running (interim, 07:50 UTC: step 34); with the published run, three (user: no 90-step control, evaluations at 30, 60, 90) | Step 90: 72.4% (published, 0.2.1) and 74.6% (1235 / 43); step 30: 70.7, 69.0 and 68.3%; step time 122 s in both finished runs | `rl/runs/f6_*` |
+| F6 RL seeds at 90 steps | seed 1235 / 43 done; 1236 / 44 running (interim, 09:00 UTC: step 61); with the published run, three (user: no 90-step control, evaluations at 30, 60, 90) | Step 90: 72.4% (published, 0.2.1) and 74.6% (1235 / 43); step 60: 72.4, 70.6 and 72.6%; step 30: 70.7, 69.0 and 68.3%; step time 122 s in both finished runs | `rl/runs/f6_*` |
 | F7 second seed per precision arm | no (user: skipped for time) | The report says the three arms end indistinguishable | — |
 
 Gaps G1–G9 from the plan:
@@ -44,7 +44,7 @@ Gaps G1–G9 from the plan:
 | G3 precision of parameters and optimizer state | Closed: BF16 for SFT (stated in 9.4), FP32 for RL, and why it matters (S1, S2). |
 | G4 control for answer format (SFT) | Closed: S0, S5; for BFCL, the lenient reading. |
 | G5 evaluations during training, unrelated test set | Closed differently (user's choice): held-out loss every 25 steps, and BFCL for the ToolACE run; no GSM8K curve along the MetaMathQA run (S6 dropped). |
-| G6 more than one RL run | Closing (F6): three runs to step 30 on the release (68.3–70.7%), two to step 90 so far (72.4%, 74.6%); the third is running. |
+| G6 more than one RL run | Closing (F6): three runs to step 30 on the release (68.3–70.7%), and to step 60 (70.6–72.6%), two to step 90 so far (72.4%, 74.6%); the third is running. |
 | G7 controls for the loop and for format (RL) | Closed: R2 (zero learning rate), R0 and R5 (format). |
 | G8 evaluation on a reference backend | Partly closed: teacher-forced CPU comparison of serving (S4; margins at every disagreement, F4) and of the RL trainer (R3); no reference-trained checkpoint, no independent CPU accuracy. |
 | G9 versions and patches in the text | Closed: 9.5 names the Miles patch and versions; every run records its versions. |
@@ -490,7 +490,7 @@ Replies at the cap: Base 42 (thinking) and 3; fine-tuned 6 and 0. The longer lim
 is 12.6 points with the same prompt (12.4) and 15.2 points with each model at its best (17.9). Because that last margin
 shrinks, the report now quotes the 1,024-token numbers (as the handoff asks).
 
-## F6: RL seeds at 90 steps (interim, 2026-11-25 07:50 UTC)
+## F6: RL seeds at 90 steps (interim, 2026-11-25 09:00 UTC)
 
 The published setup for 90 steps on the release build (training and serving), seeds 1235 / 43 and 1236 / 44 (the R1
 seeds), with the published run (seed 1234 / 42, libtt 0.2.1) as the third (user's choice: reuse it, two new seeds, no
@@ -502,7 +502,7 @@ Runs `exp/rl/runs/f6_s2` and `f6_s3` (versions, rollouts and evaluations saved).
 | --- | --- | --- | --- | --- |
 | Published `long3` (seed 1234 / 42, libtt 0.2.1; in-run evaluations) | 58.00% (fresh server) | 70.74% | 72.40% | 72.40% |
 | `f6_s2` (seed 1235 / 43) | 58.15% | 68.99% | 70.58% | 74.60% |
-| `f6_s3` (seed 1236 / 44) | 58.15% (`f6_s2`'s) | 68.31% | running | running |
+| `f6_s3` (seed 1236 / 44) | 58.15% (`f6_s2`'s) | 68.31% | 72.63% | running |
 
 On the release, step 0 (58.15%) matches 0.2.1's 58.00% and 2a4333a9's 58.07% (R2) within two answers. After 30 steps
 the release runs are within a point of the first pass's runs with the same seeds (R1: 68.61%, 67.10%). Over the final
