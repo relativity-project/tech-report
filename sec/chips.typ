@@ -1,6 +1,6 @@
 = Distributed Execution Across Chips <chips>
 
-Libtt makes a program run across multiple chips. It organizes them into a logical _mesh_, lets each array be divided across one or more mesh axes, replicated across others, or held on a single chip, and adds collective operations that exchange or combine data when a computation needs values held elsewhere.
+Libtt runs a single program across multiple chips. It organizes the chips into a logical _mesh_, places each array by dividing it across one or more mesh axes, replicating it across others, or holding it on one chip, and provides collective operations that exchange or combine data when a computation needs values held on other chips.
 
 This supports many different ways of dividing work, including the following ones: _Data parallelism_ assigns different examples to different chips, usually with a copy of the model on each. _Tensor parallelism_ divides the tensors and computations within a layer @megatron. _Expert parallelism_ places the experts of a mixture-of-experts model on different chips. _Fully sharded data parallelism_ distributes parameters, gradients, and optimizer state across chips and gathers parameters when needed. _Pipeline parallelism_ assigns successive groups of layers to different chips and passes intermediate results between them. _Sequence parallelism_ divides some intermediate activations along the sequence dimension, and _context parallelism_ also distributes attention over parts of a long sequence. TorchTitan's four-chip training runs are a concrete example of fully sharded data parallelism (@training).
 
@@ -8,15 +8,15 @@ Libtt implements the local computation and communication that the framework's pa
 
 == Single controller
 
-A JAX program states how its arrays are divided by annotating them, and the Shardy partitioner propagates the annotations through the program. With `shard_map`, the programmer can also write the per-chip computation explicitly and mix it with automatically partitioned code. Libtt supports both forms and their combination. After partitioning, the compiler rewrites every shape to the piece one chip holds, and whatever must cross between chips appears as an explicit _collective_: an all-reduce that sums, or takes the maximum or minimum of, the values the chips hold; an all-gather that concatenates them; or a send from each chip to another.
+A JAX program states how its arrays are divided by annotating them, and the Shardy partitioner propagates the annotations through the program. With `shard_map`, the programmer can instead write the per-chip computation explicitly and mix it with automatically partitioned code. Libtt supports both forms and their combination. After partitioning, the compiler rewrites every shape to the piece one chip holds, and whatever must cross between chips appears as an explicit _collective_: an all-reduce that sums, or takes the maximum or minimum of, the values the chips hold; an all-gather that concatenates them; or a send from each chip to another.
 
-A single controller drives all the chips. Data crosses between them over their Ethernet links, routed by small kernels on each chip, and never passes through the host. No launcher or message-passing library is needed: the server starts as it does on one chip, with one additional flag.
+A single controller drives all the chips. Data crosses between them over their Ethernet links, routed by small kernels on each chip, and never passes through the host. No launcher or message-passing library is needed, so the server starts as it does on one chip, with one additional flag.
 
-All-reduce matters most for tensor-parallel decoding, where it combines partial results within every layer. It began as two programs and is now one: each chip sends its rows directly into spare memory on the others, and each adds what it receives. Only rows that hold data are sent. Sums that must be exact, of integers or 32-bit floats, are computed on the vector unit.
+All-reduce matters most for tensor-parallel decoding, where it combines partial results within every layer. Libtt reduced its cost from two programs to one: each chip sends its rows directly into spare memory on the others, and each adds what it receives. Only rows that hold data are sent, and sums that must be exact, of integers or 32-bit floats, are computed on the vector unit.
 
-Before libtt, a row-divided embedding table forced a choice: gather the whole table onto every chip for each lookup, or keep a full copy on every chip. Libtt removes the need for either. Each chip looks the token up in its own rows and returns zeros if the row is elsewhere, and an all-reduce sums the results. Each chip now stores only its share of the table, so memory per chip falls as chips are added, and only one embedding vector per token crosses between chips, not the table.
+Before libtt, a row-divided embedding table forced a choice between gathering the whole table onto every chip for each lookup and keeping a full copy on every chip. Libtt needs neither. Each chip looks the token up in its own rows and returns zeros if the row is elsewhere, and an all-reduce sums the results. Each chip therefore stores only its share of the table, so memory per chip falls as chips are added, and only one embedding vector per token crosses between chips, never the table.
 
-In mixture-of-experts layers, each chip holds a subset of the experts and computes their contributions to the selected tokens, and a collective sums the contributions into the layer's output @libtt.
+In mixture-of-experts layers, each chip holds a subset of the experts and computes their contributions to the tokens routed to them, and a collective sums the partial outputs into the layer's result @libtt.
 
 == One process per chip
 

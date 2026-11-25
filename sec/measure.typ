@@ -19,7 +19,7 @@ Speed does not necessarily grow in proportion to chips: Qwen3-8B on two chips is
 #tab-batched <batched-table>
 
 #block(breakable: false)[
-== Comparison with a TPU
+=== Comparison with a TPU
 
 In @tpu-comparison we compare the exact same SGLang-TorchTPU code in two settings: Running with the libtt runtime on a Tenstorrent Blackhole P150 card and running with Google's libtpu runtime on a TPU v6e. 
 Per unit of memory bandwidth, one Blackhole matches or exceeds one TPU at single-request decode. The TPU is 2.8 to 3.2× faster, close to its 3.2× bandwidth advantage (#link("https://docs.cloud.google.com/tpu/docs/v6e")[1,638 GB/s] versus #link("https://docs.tenstorrent.com/aibs/blackhole/")[512 GB/s]).

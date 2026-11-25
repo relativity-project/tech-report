@@ -167,25 +167,26 @@ A model written in a framework is a graph of small operations. An RMS norm, for 
   ),
 ) <fusions>
 
-A fused kernel must be both correct and fast. Fewer programs do not by themselves guarantee a speedup: a kernel can still waste time reading padding or moving data between cores. A fused kernel must also preserve the rounding of the operations it replaces, since moving arithmetic between the matrix and vector units, or removing an intermediate cast, can change the result. Several of libtt’s fused kernels reproduce every rounding step, so their results match the separate operations bit for bit.
+A fused kernel must be both correct and fast. Fewer programs do not by themselves guarantee a speedup, because a kernel can still waste time reading padding or moving data between cores. Fusion must also preserve the rounding of the operations it replaces: moving arithmetic between the matrix and vector units, or removing an intermediate cast, can change the result. Several of libtt’s fused kernels reproduce every rounding step, so their results match the unfused operations bit for bit.
 
-Some improvements come from the compiler level, with no new kernel implementations. A matrix product that yields one number per batch can be rewritten as a multiplication followed by a sum. A program that keeps only the largest softmax probabilities and renormalizes them can select the largest inputs first and apply softmax to those alone. Both rewrites reduce the work done by existing kernels.
+Some improvements require no new kernels and come entirely from compiler rewrites. A matrix product that yields one number per batch becomes a multiplication followed by a sum. A program that keeps only the largest softmax probabilities and renormalizes them instead selects the largest inputs first and applies softmax to those alone. Both rewrites reduce the work that existing kernels perform.
 
 == Extending the framework with custom calls
 
-Some operations cannot be composed from small ones, or are not worth the attempt. For these, the framework lets a program extend the operation set at runtime: a JAX program invokes a custom call by name, and the compiler accepts it.
+Some operations fall outside what StableHLO's primitives express efficiently. For these, the framework provides an extension point at runtime: a JAX program invokes a _custom call_ by name, and the compiler lowers it directly to a libtt kernel.
+
 ```
 cache = jax.ffi.ffi_call(
     "tt.paged_update_cache", result_shape,
     input_output_aliases={0: 0},
 )(cache, new_kv, positions, pages, share_cache=True)
 ```
-Custom calls cover attention over a paged cache, recurrent layers, mixture-of-experts layers, and row quantization. For training, they add forward and backward attention and fused loss calls that run tt-train’s kernels (@training). Keyword arguments travel in the call’s typed attribute dictionary. The alias allows the result to overwrite the first argument, which is how a cache is updated in place.
+Custom calls cover attention over a paged cache, recurrent layers, mixture-of-experts layers, and row quantization. For training, they add forward and backward attention and fused loss calls that run tt-train’s kernels (@training). Keyword arguments are passed via the call’s typed attribute dictionary. The alias allows the result to overwrite the first argument, which is how a cache is updated in place.
 
 == Tiles and precision
 
-The tiled storage described in @machine affects far more than matrix multiplication. A reshape, slice, or gather can require data to move between tiles, and a tensor with only a few rows can be mostly padding. These costs recur throughout a model, so choosing the right layout is a major concern of the compiler’s work.
+The tiled storage described in @machine affects far more than matrix multiplication. A reshape, slice, or gather can force data to move between tiles, and a tensor with only a few rows is mostly padding. These costs recur throughout a model, so layout selection is a major concern for the compiler.
 
-Libtt keeps data in layouts that neighboring operations can consume directly, moves elementwise work to shapes that need fewer tiles, and avoids unnecessary layout conversions. For wide rows, it can regroup data into fuller tiles for reductions, or use kernels that skip the unused parts of tiles. These changes reduce memory traffic and work spent on padding @libtt. The rotary-embedding example in @training shows how a dimension of two can occupy 32 columns in tiled storage, and how a rewrite avoids that padding.
+Libtt keeps data in layouts that neighboring operations can consume directly, which avoids unnecessary layout conversions, and it moves elementwise work to shapes that occupy fewer tiles. For wide rows, it regroups data into fuller tiles for reductions or uses kernels that skip the unused parts of tiles, reducing both memory traffic and work spent on padding @libtt. The rotary-embedding example in @training shows how a dimension of two occupies 32 columns in tiled storage, and how a rewrite avoids that padding.
 
-The arithmetic must also meet the numerical requirements in @numerical-types. Libtt uses vector-unit arithmetic and 32-bit accumulation where needed, and its optimizations preserve these choices instead of falling back on the runtime’s defaults.
+These layout choices must also respect the numerical requirements in @numerical-types. Libtt uses vector-unit arithmetic and 32-bit accumulation where needed, and its optimizations preserve these choices instead of falling back on the runtime’s defaults.
